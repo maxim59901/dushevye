@@ -6,6 +6,7 @@
 - `lk.css` — общие стили
 - Кабинеты: `admin`, `owner`, `accountant`, `manager`, `measurer`, `installer`, `supply`, `production`
 - `projects.html` — воронка проектов (список, создание, статус, привязка КП). Ссылки в кабинетах admin, owner и manager
+- `stock.html` — остатки и резерв комплектующих. Ссылки в кабинетах admin, owner, supply и manager
 
 Правило: тип учётки задаётся при регистрации (роль в приглашении); меняют админ/хозяин.
 Вход и каталог ходят в FastAPI (`app/`, префикс `/api`). Секреты сессии в git не хранятся.

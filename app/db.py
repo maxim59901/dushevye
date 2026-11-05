@@ -108,6 +108,44 @@ CREATE INDEX IF NOT EXISTS idx_projects_org_status ON projects(org_id, status);
 CREATE INDEX IF NOT EXISTS idx_projects_responsible ON projects(org_id, responsible_user_id);
 CREATE INDEX IF NOT EXISTS idx_projects_created_by ON projects(org_id, created_by);
 CREATE INDEX IF NOT EXISTS idx_projects_quote ON projects(quote_id);
+
+CREATE TABLE IF NOT EXISTS stock_balances (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  org_id INTEGER NOT NULL REFERENCES organizations(id),
+  part_id INTEGER NOT NULL,
+  sku TEXT NOT NULL DEFAULT '',
+  source TEXT NOT NULL DEFAULT '',
+  qty_on_hand REAL NOT NULL DEFAULT 0,
+  qty_reserved REAL NOT NULL DEFAULT 0,
+  min_qty REAL NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(org_id, part_id),
+  CHECK (
+    qty_on_hand >= 0
+    AND qty_reserved >= 0
+    AND min_qty >= 0
+    AND qty_reserved <= qty_on_hand + 0.0000001
+  )
+);
+
+CREATE TABLE IF NOT EXISTS stock_movements (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  org_id INTEGER NOT NULL REFERENCES organizations(id),
+  part_id INTEGER NOT NULL,
+  kind TEXT NOT NULL,
+  qty REAL NOT NULL,
+  project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
+  actor_id INTEGER REFERENCES users(id),
+  note TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  CHECK (kind IN ('in', 'out', 'reserve', 'release')),
+  CHECK (qty > 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_stock_balances_org ON stock_balances(org_id);
+CREATE INDEX IF NOT EXISTS idx_stock_movements_org_part ON stock_movements(org_id, part_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_stock_movements_project ON stock_movements(project_id);
+CREATE INDEX IF NOT EXISTS idx_stock_movements_actor ON stock_movements(org_id, actor_id);
 """
 
 
