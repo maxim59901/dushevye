@@ -1,0 +1,24 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Secrets and local env — never commit
+.env
+.env.*
+api.env
+**/api.env
+secrets
+secrets/
+dushevye-initial-admin.txt
+*initial-admin*
+
+# Generated databases, logs, archives
+*.db
+*.tgz
+logs/
+
+# Product photo cache (kept on the VDS, not in git)
+public/media/parts/

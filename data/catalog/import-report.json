@@ -1,0 +1,66 @@
+{
+  "when": "20261105-1329",
+  "total": 2120,
+  "with_image": 0,
+  "with_material": 0,
+  "with_finish": 0,
+  "with_glass_mm": 678,
+  "with_params": 0,
+  "by_group": {
+    "hinges": {
+      "title": "Петли",
+      "count": 400
+    },
+    "handles": {
+      "title": "Ручки",
+      "count": 202
+    },
+    "connectors": {
+      "title": "Коннекторы",
+      "count": 635
+    },
+    "rods": {
+      "title": "Штанги / трубы / профили",
+      "count": 357
+    },
+    "seals": {
+      "title": "Уплотнители",
+      "count": 258
+    },
+    "sliding": {
+      "title": "Раздвижные системы",
+      "count": 107
+    },
+    "other": {
+      "title": "Прочее",
+      "count": 161
+    }
+  },
+  "files": {
+    "csv_combined": "/workspace/dushevye-setup/data/imports/all-20261105-1329.csv",
+    "csv_latest": "/workspace/dushevye-setup/data/imports/all-latest.csv",
+    "parts_json": "/workspace/dushevye-setup/data/catalog/parts.json",
+    "catalog_db": "/workspace/dushevye-setup/data/catalog/catalog.db"
+  },
+  "mode": "rebuild-after-pre",
+  "by_source": {
+    "titan": {
+      "count": 481
+    },
+    "arabella": {
+      "count": 1007
+    },
+    "pauli": {
+      "count": 512
+    },
+    "syndicate": {
+      "count": 40
+    },
+    "servicepls": {
+      "count": 40
+    },
+    "oporto": {
+      "count": 40
+    }
+  }
+}

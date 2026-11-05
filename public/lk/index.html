@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Личный кабинет — роли · Душевые</title>
+<link rel="stylesheet" href="lk.css"/>
+</head>
+<body style="background:var(--bg)">
+<div class="roles-index">
+  <header>
+    <div>
+      <div class="logo">ДУШЕВЫЕ · СТАНОК</div>
+    </div>
+    <div class="row">
+      <a class="btn ghost" href="../index.html">Витрина</a>
+      <a class="btn ghost" href="../cfg.html">Конфигуратор</a>
+      <a class="btn ghost" href="catalog.html">Каталог</a>
+      <a class="btn ghost" href="login.html">Войти</a>
+      <a class="btn" href="login.html">Открыть кабинет</a>
+    </div>
+  </header>
+  <h1>Личный кабинет — макеты ролей</h1>
+  <p class="lead">Кабинеты защищены входом. Демо-ссылки ниже — только для админа/хозяина после входа; остальным откроется свой кабинет. Тип учётки задаётся при регистрации (выбор роли в форме приглашения); после регистрации роль меняют только админ или хозяин. В журнале версий полный лог — у хозяина и админа; у остальных ролей — только свои обновления.</p>
+  <div class="role-grid">
+    <a class="role-card" href="admin.html">
+      <div class="k">Система</div>
+      <h3>Админ</h3>
+      <p>Настройка системы, пользователи, роли, полный лог, закуп и наценка.</p>
+      <div class="go">Открыть кабинет →</div>
+    </a>
+    <a class="role-card" href="owner.html">
+      <div class="k">Владелец</div>
+      <h3>Хозяин</h3>
+      <p>Полный доступ: деньги, закупки, наценка, смена ролей, полный лог.</p>
+      <div class="go">Открыть кабинет →</div>
+    </a>
+    <a class="role-card" href="accountant.html">
+      <div class="k">Учёт</div>
+      <h3>Бухгалтер</h3>
+      <p>Счета и акты; видит закуп и наценку; в истории — только свои обновления.</p>
+      <div class="go">Открыть кабинет →</div>
+    </a>
+    <a class="role-card" href="manager.html">
+      <div class="k">Продажи</div>
+      <h3>Менеджер</h3>
+      <p>Проекты и КП; склад — смотрит и резервирует; без денег и закупок; лог — только свои.</p>
+      <div class="go">Открыть кабинет →</div>
+    </a>
+    <a class="role-card" href="measurer.html">
+      <div class="k">Замер</div>
+      <h3>Замерщик</h3>
+      <p>Выезды на замер, размеры проёмов, фото и передача данных в проект.</p>
+      <div class="go">Открыть кабинет →</div>
+    </a>
+    <a class="role-card" href="installer.html">
+      <div class="k">Монтаж</div>
+      <h3>Монтажник</h3>
+      <p>Выезды и монтаж: график, адреса, комплектация, акты выполненных работ.</p>
+      <div class="go">Открыть кабинет →</div>
+    </a>
+    <a class="role-card" href="supply.html">
+      <div class="k">Закупки</div>
+      <h3>Снабжение</h3>
+      <p>Закупки и поставщики: заявки, заказы, сроки поставки, склад входящий.</p>
+      <div class="go">Открыть кабинет →</div>
+    </a>
+    <a class="role-card" href="production.html">
+      <div class="k">Цех</div>
+      <h3>Производство</h3>
+      <p>Очередь цеха: раскрой, сборка, статусы заказов, готовность к отгрузке.</p>
+      <div class="go">Открыть кабинет →</div>
+    </a>
+  </div>
+
+  <div class="card invite-box" id="invite">
+    <h2 style="margin:0 0 8px;font-size:16px">Регистрация по приглашению</h2>
+    <p class="lead">Админ/хозяин создаёт ссылку и заранее указывает роль. В форме регистрации роль уже выбрана (поле только для чтения у приглашённого). Сменить тип учётки позже могут админ или хозяин в карточке пользователя.</p>
+    <div class="grid two">
+      <div>
+        <div class="field"><label>Имя</label><input type="text" placeholder="Иван Петров"/></div>
+        <div class="field"><label>Email</label><input type="email" placeholder="ivan@company.ru"/></div>
+        <div class="field"><label>Пароль</label><input type="password" placeholder="••••••••"/></div>
+      </div>
+      <div>
+        <div class="field"><label>Роль (из приглашения)</label>
+          <select disabled>
+            <option selected>Менеджер</option>
+            <option>Бухгалтер</option>
+            <option>Замерщик</option>
+            <option>Монтажник</option>
+            <option>Снабжение</option>
+            <option>Производство</option>
+            <option>Админ</option>
+          </select>
+          <span class="hint">Задаётся приглашением. Пользователь сам роль не меняет.</span>
+        </div>
+        <div class="field"><label>Телефон</label><input type="text" placeholder="+7 …"/></div>
+        <div class="row" style="margin-top:8px">
+          <button class="btn" type="button">Зарегистрироваться</button>
+          <a class="btn ghost" href="admin.html#invite">Как создаётся приглашение</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">Вход: <a href="login.html">/lk/login.html</a>. Учётки создаёт админ или хозяин. Каталог: <a href="catalog.html">/lk/catalog.html</a>. Документация: <code>docs/auth.md</code>, <code>docs/roles.md</code>, <code>docs/catalog-lk.md</code>.</div>
+</div>
+<script src="auth.js"></script>
+</body>
+</html>

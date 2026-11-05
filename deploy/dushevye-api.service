@@ -1,0 +1,20 @@
+[Unit]
+Description=Dushevye Stanok Auth API
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/dushevye
+Environment=DUSHEVYE_DB=/var/www/dushevye/data/app.db
+Environment=DUSHEVYE_CATALOG_DB=/var/www/dushevye/data/catalog.db
+Environment=DUSHEVYE_API_HOST=127.0.0.1
+Environment=DUSHEVYE_API_PORT=8088
+EnvironmentFile=-/etc/dushevye/api.env
+ExecStart=/var/www/dushevye/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8088 --proxy-headers
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

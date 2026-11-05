@@ -1,0 +1,2 @@
+Media photos live on VDS: /var/www/dushevye/public/media/parts/ (239 files).
+Full media tarball on box: /tmp/dushevye-catalog-full.tgz (29M) — copy when PC online.
