@@ -46,6 +46,45 @@ CREATE TABLE IF NOT EXISTS audit_log (
 CREATE INDEX IF NOT EXISTS idx_users_org ON users(org_id);
 CREATE INDEX IF NOT EXISTS idx_audit_org ON audit_log(org_id);
 CREATE INDEX IF NOT EXISTS idx_audit_actor ON audit_log(actor_id);
+
+CREATE TABLE IF NOT EXISTS quotes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  org_id INTEGER NOT NULL REFERENCES organizations(id),
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  status TEXT NOT NULL DEFAULT 'draft',
+  fence_type TEXT NOT NULL,
+  width_mm INTEGER NOT NULL,
+  height_mm INTEGER NOT NULL,
+  depth_mm INTEGER,
+  glass_thick_mm INTEGER NOT NULL,
+  glass_kind TEXT NOT NULL,
+  glass_area_m2 REAL NOT NULL,
+  glass_unit_price REAL NOT NULL,
+  glass_sum REAL NOT NULL,
+  hardware_sum REAL NOT NULL DEFAULT 0,
+  total REAL NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'RUB',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS quote_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  quote_id INTEGER NOT NULL REFERENCES quotes(id) ON DELETE CASCADE,
+  line_no INTEGER NOT NULL,
+  kind TEXT NOT NULL,
+  part_id INTEGER,
+  sku TEXT NOT NULL DEFAULT '',
+  name TEXT NOT NULL,
+  qty REAL NOT NULL,
+  unit TEXT NOT NULL,
+  unit_price REAL,
+  line_sum REAL,
+  source TEXT NOT NULL DEFAULT '',
+  group_title TEXT NOT NULL DEFAULT ''
+);
+
+CREATE INDEX IF NOT EXISTS idx_quotes_org_user ON quotes(org_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_quote_items_quote ON quote_items(quote_id);
 """
 
 
