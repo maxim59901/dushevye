@@ -26,6 +26,13 @@ h1{font-size:28px;margin:0 0 6px;letter-spacing:-.02em}
 .field{margin-bottom:14px}
 .field label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
 .field .hint,.hint{display:block;font-size:12px;color:var(--muted);font-weight:400;margin-top:4px}
+.dims{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+.rule-box{margin-top:12px;border-radius:10px;padding:10px 12px;font-size:13px}
+.rule-box.bad{background:#FDECEC;color:#9B1C1C}
+.rule-box.soft{background:#FFF6E8;color:#7A4E00}
+.rule-box ul{margin:6px 0 0;padding-left:18px}
+.rule-box li+li{margin-top:4px}
+.rule-box .warn{color:#7A4E00}
 .seg{display:flex;flex-wrap:wrap;gap:8px}
 .seg label,.seg button{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:9px 12px;cursor:pointer;font-size:13px;font-weight:500;background:var(--white);font-family:inherit;color:inherit}
 .seg input{accent-color:var(--accent)}
@@ -112,36 +119,25 @@ tr.just-saved{background:#FDF6F2}
 <main class="wrap">
   <section class="panel form-panel">
     <h1>Конфигуратор КП</h1>
-    <p class="lead">Черновик для производства. Фурнитура и цена закупа берутся из каталога. Стекло считается по площади и ставке. После входа расчёт можно сохранить и скачать PDF.</p>
+    <p class="lead">Черновик для производства. Сначала шаблон конструкции, затем размеры по его слотам. Фурнитура и цена закупа берутся из каталога. Стекло считается по площади и ставке. Ошибки правил не дают сохранить КП.</p>
 
     <div class="panel" style="padding:16px;margin-bottom:14px;background:var(--soft);border:0">
-      <h2>1. Тип конструкции</h2>
-      <div class="seg" id="typeSeg">
-        <label><input type="radio" name="type" value="corner" checked> Угловая</label>
-        <label><input type="radio" name="type" value="straight"> Прямая</label>
-        <label><input type="radio" name="type" value="niche"> Ниша</label>
-        <label><input type="radio" name="type" value="sliding"> Раздвижная</label>
-        <label><input type="radio" name="type" value="accordion"> Гармошка</label>
-      </div>
+      <h2>1. Шаблон</h2>
+      <div class="seg" id="typeSeg"></div>
+      <span class="hint" id="slotHint">Загрузка шаблонов…</span>
     </div>
 
     <div class="panel" style="padding:16px;margin-bottom:14px;background:var(--soft);border:0">
-      <h2>2. Размеры проёма, мм</h2>
-      <div class="grid3">
-        <div class="field">
-          <label for="width">Ширина</label>
-          <input id="width" type="number" min="400" max="4000" step="1" value="900"/>
-        </div>
-        <div class="field">
-          <label for="height">Высота</label>
-          <input id="height" type="number" min="400" max="3000" step="1" value="2000"/>
-        </div>
-        <div class="field" id="depthField">
-          <label for="depth">Глубина</label>
-          <input id="depth" type="number" min="400" max="2000" step="1" value="900"/>
-          <span class="hint">Для угловой и ниши</span>
+      <h2>2. Размеры</h2>
+      <div class="dims" id="dimFields"></div>
+      <div class="field" id="doorField" hidden>
+        <label>Створки</label>
+        <div class="seg">
+          <label><input type="radio" name="doors" value="1" checked> Одна</label>
+          <label><input type="radio" name="doors" value="2"> Две</label>
         </div>
       </div>
+      <div id="ruleBox" class="rule-box" hidden></div>
     </div>
 
     <div class="panel" style="padding:16px;margin-bottom:14px;background:var(--soft);border:0">
@@ -149,7 +145,7 @@ tr.just-saved{background:#FDF6F2}
       <div class="grid2">
         <div class="field">
           <label>Толщина</label>
-          <div class="seg">
+          <div class="seg" id="glassThickSeg">
             <label><input type="radio" name="glassThick" value="8" checked> 8 мм</label>
             <label><input type="radio" name="glassThick" value="10"> 10 мм</label>
           </div>
@@ -162,7 +158,7 @@ tr.just-saved{background:#FDF6F2}
           </div>
         </div>
       </div>
-      <span class="hint">Оценка: площадь × ставка за м² × коэффициент вида и типа. Ставки заданы в конфигураторе отдельно от фурнитуры.</span>
+      <span class="hint">Оценка: площадь × ставка за м² × коэффициент вида и типа. Толщина ограничена выбранным шаблоном.</span>
     </div>
 
     <div class="panel" style="padding:16px;background:var(--soft);border:0">
@@ -284,15 +280,18 @@ tr.just-saved{background:#FDF6F2}
   const GLASS_RATES = {
     perSqm: {8: 4200, 10: 5100},
     kindMult: {clear: 1, matte: 1.18},
-    typeFactor: {corner: 1.12, straight: 1.0, niche: 1.08, sliding: 1.15, accordion: 1.22}
+    typeFactor: {corner: 1.12, straight: 1.0, niche: 1.08, sliding: 1.15, accordion: 1.22, ushape: 1.18, trapezoid: 1.1}
   };
   const TYPE_LABEL = {
     corner: 'Угловая',
     straight: 'Прямая',
     niche: 'Ниша',
     sliding: 'Раздвижная',
-    accordion: 'Гармошка'
+    accordion: 'Гармошка',
+    ushape: 'П-образная',
+    trapezoid: 'Трапеция'
   };
+  const DIM_DEFAULTS = {width_mm: 900, height_mm: 2000, depth_mm: 900, depth2_mm: 800, angle_deg: 105};
   const KIND_LABEL = {clear: 'прозрачное', matte: 'матовое'};
   const SOURCE_LABEL = {
     titan: 'ТИТАН',
@@ -320,9 +319,15 @@ tr.just-saved{background:#FDF6F2}
     catalogOk: false,
     results: new Map(),
     user: null,
-    lastSavedId: null
+    lastSavedId: null,
+    templates: [],
+    templateId: '',
+    ruleErrors: [],
+    ruleWarnings: []
   };
   let csrfToken = null;
+  let ruleTimer = null;
+  let ruleSeq = 0;
 
   const $ = (s, el=document) => el.querySelector(s);
   let searchSeq = 0;
@@ -333,7 +338,6 @@ tr.just-saved{background:#FDF6F2}
     const el = document.querySelector(`input[name="${name}"]:checked`);
     return el ? el.value : null;
   }
-  function num(id){ return Math.max(0, Number($(id).value) || 0); }
   function esc(s){
     return String(s == null ? '' : s)
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
@@ -361,12 +365,29 @@ tr.just-saved{background:#FDF6F2}
     if (!Number.isFinite(x)) return '—';
     return new Intl.NumberFormat('ru-RU', {maximumFractionDigits: 2}).format(x);
   }
-  function areaSqm(type, w, h, d){
-    const Wm = w/1000, Hm = h/1000, Dm = d/1000;
-    if(type === 'corner') return (Wm + Dm) * Hm;
+  function areaSqm(type, w, h, d, d2){
+    const Wm = w/1000, Hm = h/1000, Dm = (d || 0)/1000, D2 = (d2 || 0)/1000;
+    if(type === 'corner' || type === 'trapezoid') return (Wm + Dm) * Hm;
     if(type === 'niche') return (Wm + 2*Dm) * Hm * 0.55;
     if(type === 'accordion') return Wm * Hm * 1.15;
+    if(type === 'ushape') return (Dm + Wm + D2) * Hm;
     return Wm * Hm;
+  }
+  function currentTemplate(){
+    return state.templates.find((t) => t.id === state.templateId) || null;
+  }
+  function readDims(){
+    const out = {};
+    document.querySelectorAll('[data-dim]').forEach((el) => {
+      out[el.dataset.dim] = el.value;
+    });
+    return out;
+  }
+  function dimNumber(id, dims){
+    const raw = dims[id];
+    if (raw == null || String(raw).trim() === '') return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? Math.round(n) : null;
   }
   function priceNumber(raw){
     if (raw == null || raw === '') return null;
@@ -382,6 +403,9 @@ tr.just-saved{background:#FDF6F2}
   }
   function errorMessage(data, status){
     const d = data && data.detail;
+    if (d && typeof d === 'object' && !Array.isArray(d) && Array.isArray(d.errors) && d.errors.length) {
+      return d.errors.map((item) => (item && item.message) || '').filter(Boolean).join(' ');
+    }
     if (typeof d === 'string' && d) return d;
     if (Array.isArray(d) && d.length) {
       return d.map((item) => (item && item.msg) || '').filter(Boolean).join('; ') || ('Ошибка ' + status);
@@ -430,26 +454,44 @@ tr.just-saved{background:#FDF6F2}
       '<a href="' + open + '?download=1">Скачать PDF</a>';
   }
   function quoteSize(q){
-    if (q.fence_type === 'corner' || q.fence_type === 'niche') {
-      return q.width_mm + '×' + q.height_mm + '×' + (q.depth_mm == null ? '—' : q.depth_mm) + ' мм';
+    if (q.fence_type === 'ushape' && q.depth_mm != null && q.depth2_mm != null) {
+      let text = q.depth_mm + '×' + q.width_mm + '×' + q.depth2_mm + '×' + q.height_mm + ' мм';
+      if (q.angle_deg != null) text += ', ' + q.angle_deg + '°';
+      return text;
     }
-    return q.width_mm + '×' + q.height_mm + ' мм';
+    if (q.depth_mm != null) {
+      let text = q.width_mm + '×' + q.height_mm + '×' + q.depth_mm + ' мм';
+      if (q.angle_deg != null) text += ', угол ' + q.angle_deg + '°';
+      if (q.door_count === 2) text += ', две створки';
+      return text;
+    }
+    let text = q.width_mm + '×' + q.height_mm + ' мм';
+    if (q.door_count === 2) text += ', две створки';
+    return text;
   }
   function draftPayload(){
-    const type = val('type');
-    const depth = Math.round(num('#depth'));
+    const tpl = currentTemplate();
+    const dims = readDims();
+    const width = dimNumber('width_mm', dims);
+    const height = dimNumber('height_mm', dims);
     const body = {
-      fence_type: type,
-      width_mm: Math.round(num('#width')),
-      height_mm: Math.round(num('#height')),
+      template_id: tpl ? tpl.id : '',
+      fence_type: tpl ? tpl.fence_type : '',
+      width_mm: width == null ? 0 : width,
+      height_mm: height == null ? 0 : height,
       glass_thick_mm: Number(val('glassThick')),
       glass_kind: val('glassKind'),
       items: state.picks
         .filter((p) => Number(p.qty) >= 1)
         .map((p) => ({id: Number(p.id), qty: Math.max(1, Math.round(Number(p.qty)))}))
     };
-    const needDepth = type === 'corner' || type === 'niche';
-    if (needDepth || (depth >= 400 && depth <= 2000)) body.depth_mm = depth;
+    const depth = dimNumber('depth_mm', dims);
+    const depth2 = dimNumber('depth2_mm', dims);
+    const angle = dimNumber('angle_deg', dims);
+    if (depth != null) body.depth_mm = depth;
+    if (depth2 != null) body.depth2_mm = depth2;
+    if (angle != null) body.angle_deg = angle;
+    if (tpl && tpl.door_choices && tpl.door_choices.length) body.doors = Number(val('doors') || 1);
     const projectId = selectedProjectId();
     if (projectId) body.project_id = projectId;
     return body;
@@ -521,6 +563,8 @@ tr.just-saved{background:#FDF6F2}
     const btn = $('#saveQuote');
     if (!btn) return;
     btn.textContent = state.user ? 'Сохранить КП' : 'Войти и сохранить';
+    btn.disabled = state.ruleErrors.length > 0;
+    btn.title = state.ruleErrors.length ? state.ruleErrors[0].message : '';
   }
   async function loadQuotes(){
     const panel = $('#myQuotes');
@@ -548,7 +592,7 @@ tr.just-saved{background:#FDF6F2}
     }
     $('#quoteList').innerHTML = items.map((q) => {
       const n = Number(q.id);
-      const type = TYPE_LABEL[q.fence_type] || q.fence_type || '';
+      const type = q.fence_label || TYPE_LABEL[q.fence_type] || q.fence_type || '';
       const who = data.can_see_org
         ? '<div class="hint">' + esc(q.author_name || q.author_email || '') + '</div>'
         : '';
@@ -586,6 +630,13 @@ tr.just-saved{background:#FDF6F2}
     });
   }
   async function onSave(){
+    if (state.ruleErrors.length) {
+      const status = $('#saveStatus');
+      status.classList.add('err');
+      status.dataset.rules = '1';
+      status.textContent = state.ruleErrors.map((item) => item.message).join(' ');
+      return;
+    }
     if (!state.user) {
       location.href = 'lk/login.html?next=' + encodeURIComponent('/cfg.html');
       return;
@@ -602,6 +653,7 @@ tr.just-saved{background:#FDF6F2}
       const n = Number(q.id);
       state.lastSavedId = n;
       const linked = projectId ? ' · проект №' + projectId : '';
+      delete status.dataset.rules;
       status.innerHTML = 'КП №' + n + ' сохранено' + linked + ' · итог ' + esc(money(q.total)) + '. ' + pdfAnchors(n);
       syncProjectBind();
       await loadQuotes();
@@ -615,7 +667,7 @@ tr.just-saved{background:#FDF6F2}
         status.textContent = e.message || 'Не удалось сохранить';
       }
     } finally {
-      btn.disabled = false;
+      syncSaveButton();
     }
   }
   async function apiGet(path, signal){
@@ -630,30 +682,248 @@ tr.just-saved{background:#FDF6F2}
     return data;
   }
 
-  function syncDepth(){
-    const type = val('type');
-    const need = (type === 'corner' || type === 'niche');
-    $('#depthField').style.display = need ? '' : 'none';
+  function sizeText(tpl, dims){
+    const mm = [];
+    let angle = null;
+    (tpl.dimensions || []).forEach((dim) => {
+      const value = dimNumber(dim.id, dims);
+      if (dim.id === 'angle_deg') angle = value;
+      else mm.push(value == null ? '—' : value);
+    });
+    let text = mm.join('×') + ' мм';
+    if (angle != null) text += ', угол ' + angle + '°';
+    if (tpl.door_choices && tpl.door_choices.length && Number(val('doors')) === 2) text += ', две створки';
+    return text;
+  }
+  function localErrors(){
+    const tpl = currentTemplate();
+    if (!tpl) return [{code: 'template_id', message: 'Выберите шаблон конструкции.'}];
+    const dims = readDims();
+    const errors = [];
+    (tpl.dimensions || []).forEach((dim) => {
+      const unit = dim.unit || 'мм';
+      const raw = dims[dim.id];
+      if (raw == null || String(raw).trim() === '') {
+        errors.push({code: dim.id, message: 'Укажите «' + dim.label + '».'});
+        return;
+      }
+      const n = Math.round(Number(raw));
+      if (!Number.isFinite(n)) {
+        errors.push({code: dim.id, message: dim.label + ': укажите целое число.'});
+        return;
+      }
+      if (n < dim.min || n > dim.max) {
+        errors.push({
+          code: dim.id,
+          message: dim.label + ': ' + n + ' ' + unit + ' вне допуска шаблона (' + dim.min + '–' + dim.max + ' ' + unit + ').'
+        });
+        return;
+      }
+      if (dim.not_equal != null && n === dim.not_equal) {
+        errors.push({
+          code: dim.id,
+          message: dim.label + ': ' + n + unit + ' не подходит. Для шаблона «' + tpl.name + '» нужен угол, отличный от ' + dim.not_equal + unit + '.'
+        });
+      }
+    });
+    const thick = Number(val('glassThick'));
+    const allowed = tpl.glass_thickness_mm || [];
+    if (allowed.length && allowed.indexOf(thick) === -1) {
+      errors.push({
+        code: 'glass_thickness',
+        message: 'Толщина стекла ' + thick + ' мм не допускается для шаблона «' + tpl.name + '». Допустимо: ' + allowed.join(', ') + ' мм.'
+      });
+    }
+    const minWidth = tpl.two_door_min_width;
+    const width = dimNumber('width_mm', dims);
+    if (minWidth && Number(val('doors')) === 2 && width != null && width < minWidth) {
+      errors.push({
+        code: 'two_doors_width',
+        message: 'Для двух створок ширина проёма от ' + minWidth + ' мм, сейчас ' + width + ' мм.'
+      });
+    }
+    return errors;
+  }
+  function showRules(errors, warnings){
+    state.ruleErrors = errors || [];
+    state.ruleWarnings = warnings || [];
+    const box = $('#ruleBox');
+    const status = $('#saveStatus');
+    if (!state.ruleErrors.length && !state.ruleWarnings.length) {
+      box.hidden = true;
+      box.innerHTML = '';
+      box.className = 'rule-box';
+    } else {
+      box.hidden = false;
+      box.className = 'rule-box' + (state.ruleErrors.length ? ' bad' : ' soft');
+      const title = state.ruleErrors.length ? 'Сохранить КП нельзя' : 'Замечания';
+      const blocks = ['<strong>' + title + '</strong>'];
+      if (state.ruleErrors.length) {
+        blocks.push('<ul>' + state.ruleErrors.map((item) => '<li>' + esc(item.message || '') + '</li>').join('') + '</ul>');
+      }
+      if (state.ruleWarnings.length) {
+        blocks.push('<ul class="warn">' + state.ruleWarnings.map((item) => '<li>' + esc(item.message || '') + '</li>').join('') + '</ul>');
+      }
+      box.innerHTML = blocks.join('');
+    }
+    if (status) {
+      if (state.ruleErrors.length) {
+        status.classList.add('err');
+        status.dataset.rules = '1';
+        status.textContent = state.ruleErrors.map((item) => item.message).join(' ');
+      } else if (status.dataset.rules === '1') {
+        status.classList.remove('err');
+        status.textContent = '';
+        delete status.dataset.rules;
+      }
+    }
+    syncSaveButton();
+  }
+  function scheduleRules(){
+    const local = localErrors();
+    if (!state.user) {
+      showRules(local, []);
+      return;
+    }
+    if (local.length) showRules(local, []);
+    clearTimeout(ruleTimer);
+    ruleTimer = setTimeout(() => { runServerRules(); }, 280);
+  }
+  async function runServerRules(){
+    if (!state.user || !currentTemplate()) return;
+    const seq = ++ruleSeq;
+    try {
+      const data = await apiPost('/api/config/validate', draftPayload());
+      if (seq !== ruleSeq) return;
+      showRules(data.errors || [], data.warnings || []);
+    } catch (e) {
+      if (seq !== ruleSeq) return;
+      if (e.status === 401) return;
+      const local = localErrors();
+      showRules(local.length ? local : [{code: 'validate', message: e.message || 'Не удалось проверить правила'}], []);
+    }
+  }
+  function updateSlotHint(){
+    const tpl = currentTemplate();
+    const hint = $('#slotHint');
+    if (!tpl) {
+      hint.textContent = 'Не удалось загрузить шаблоны.';
+      return;
+    }
+    const slots = (tpl.slots || []).map((slot) => slot.label).join(' + ');
+    const glass = (tpl.glass_thickness_mm || []).join(', ');
+    const angle = tpl.angle_ne_90 ? ' Нужен угол, отличный от 90°.' : '';
+    hint.textContent = (tpl.summary || '') + ' Слоты: ' + slots + '. Стекло: ' + glass + ' мм.' + angle;
+  }
+  function renderTemplates(){
+    const host = $('#typeSeg');
+    host.innerHTML = '';
+    state.templates.forEach((tpl) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = tpl.name;
+      btn.dataset.template = tpl.id;
+      if (tpl.id === state.templateId) btn.classList.add('active');
+      btn.addEventListener('click', () => selectTemplate(tpl.id));
+      host.appendChild(btn);
+    });
+  }
+  function renderDims(prev){
+    prev = prev || {};
+    const tpl = currentTemplate();
+    const host = $('#dimFields');
+    host.innerHTML = '';
+    if (!tpl) return;
+    (tpl.dimensions || []).forEach((dim) => {
+      const wrap = document.createElement('div');
+      wrap.className = 'field';
+      const label = document.createElement('label');
+      const inputId = 'dim_' + dim.id;
+      label.htmlFor = inputId;
+      label.textContent = dim.label + ', ' + (dim.unit || 'мм');
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.id = inputId;
+      input.dataset.dim = dim.id;
+      input.min = dim.min;
+      input.max = dim.max;
+      input.step = '1';
+      const kept = prev[dim.id];
+      input.value = kept != null && String(kept).trim() !== '' ? kept : String(DIM_DEFAULTS[dim.id] ?? '');
+      wrap.appendChild(label);
+      wrap.appendChild(input);
+      if (dim.hint) {
+        const hint = document.createElement('span');
+        hint.className = 'hint';
+        hint.textContent = dim.hint + ' · ' + dim.min + '–' + dim.max;
+        wrap.appendChild(hint);
+      }
+      host.appendChild(wrap);
+    });
+    const doorField = $('#doorField');
+    doorField.hidden = !(tpl.door_choices && tpl.door_choices.length);
+  }
+  function renderGlass(){
+    const tpl = currentTemplate();
+    const host = $('#glassThickSeg');
+    if (!tpl || !host) return;
+    const current = val('glassThick');
+    const allowed = tpl.glass_thickness_mm || [8, 10];
+    host.innerHTML = '';
+    allowed.forEach((mm, index) => {
+      const label = document.createElement('label');
+      const input = document.createElement('input');
+      input.type = 'radio';
+      input.name = 'glassThick';
+      input.value = String(mm);
+      const keep = String(mm) === String(current);
+      const fallback = allowed.map(String).indexOf(String(current)) === -1 && index === 0;
+      input.checked = keep || fallback;
+      label.appendChild(input);
+      label.append(' ' + mm + ' мм');
+      host.appendChild(label);
+    });
+  }
+  function selectTemplate(id){
+    const prev = readDims();
+    state.templateId = id;
+    renderTemplates();
+    renderDims(prev);
+    renderGlass();
+    updateSlotHint();
+    render();
+  }
+  async function loadTemplates(){
+    const data = await apiGet('/api/templates');
+    state.templates = data.items || [];
+    if (!state.templateId && state.templates.length) state.templateId = state.templates[0].id;
+    renderTemplates();
+    renderDims(readDims());
+    renderGlass();
+    updateSlotHint();
   }
 
   function render(){
-    syncDepth();
-    const type = val('type');
-    const w = num('#width'), h = num('#height'), d = num('#depth');
+    const tpl = currentTemplate();
+    if (!tpl) return;
+    const dims = readDims();
+    const type = tpl.fence_type;
+    const w = dimNumber('width_mm', dims) || 0;
+    const h = dimNumber('height_mm', dims) || 0;
+    const d = dimNumber('depth_mm', dims) || 0;
+    const d2 = dimNumber('depth2_mm', dims) || 0;
     const thick = val('glassThick');
     const kind = val('glassKind');
-    const area = areaSqm(type, w, h, d);
+    const area = areaSqm(type, w, h, d, d2);
     const thickKey = Number(thick);
     const glassUnit = (GLASS_RATES.perSqm[thickKey] || 0)
       * (GLASS_RATES.kindMult[kind] || 1)
       * (GLASS_RATES.typeFactor[type] || 1);
     const glassSum = roundMoney(area * glassUnit);
 
-    const sizeTxt = (type === 'corner' || type === 'niche')
-      ? `${w}×${h}×${d} мм`
-      : `${w}×${h} мм`;
+    const sizeTxt = sizeText(tpl, dims);
 
-    $('#kpTitle').textContent = `КП · ${TYPE_LABEL[type] || type}`;
+    $('#kpTitle').textContent = `КП · ${tpl.name || TYPE_LABEL[type] || type}`;
     $('#kpSub').textContent = `Проём ${sizeTxt} · стекло ${thick} мм, ${KIND_LABEL[kind] || kind} · площадь ≈ ${area.toFixed(2)} м²`;
 
     const rows = [{
@@ -708,6 +978,7 @@ tr.just-saved{background:#FDF6F2}
       notes.push('Позиции без цены в каталоге стоят в спецификации и в итог не входят.');
     }
     $('#kpNote').textContent = notes.join(' ');
+    scheduleRules();
   }
 
   function renderChosen(){
@@ -937,7 +1208,19 @@ tr.just-saved{background:#FDF6F2}
     const projectPick = $('#projectPick');
     if (projectPick) projectPick.addEventListener('change', syncProjectBind);
     syncSaveButton();
-    render();
+    const form = document.querySelector('.form-panel');
+    form.addEventListener('input', (ev) => {
+      if (!ev.target.matches('[data-dim]')) return;
+      render();
+    });
+    form.addEventListener('change', (ev) => {
+      if (ev.target.name === 'glassThick' || ev.target.name === 'glassKind' || ev.target.name === 'doors') render();
+    });
+    try {
+      await loadTemplates();
+    } catch (e) {
+      $('#slotHint').textContent = e.message || 'Не удалось загрузить шаблоны';
+    }
     let me = null;
     try { me = await apiGet('/api/auth/me'); } catch (e) { me = null; }
     if (me && me.user) {
@@ -996,8 +1279,6 @@ tr.just-saved{background:#FDF6F2}
     render();
   }
 
-  ['#width','#height','#depth'].forEach((id) => $(id).addEventListener('input', render));
-  document.querySelectorAll('input[type=radio]').forEach((el) => el.addEventListener('change', render));
   boot();
 })();
 </script>

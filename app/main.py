@@ -29,7 +29,18 @@ from .projects import (
     project_meta,
     set_project_status,
 )
-from .quotes import QuoteIn, compose_quote, fetch_parts, normalize_quote, present_quote, render_quote_pdf
+from .config_rules import list_templates, merge_selected_parts, validate_config
+from .quotes import (
+    QuoteIn,
+    compose_quote,
+    fetch_parts,
+    normalize_quote,
+    parts_for_rules,
+    present_quote,
+    quote_is_valid,
+    render_quote_pdf,
+    validation_error,
+)
 from .stock import AUDIT_ACTION, StockMoveIn, apply_movement, list_stock
 from .versions import list_versions, record_version
 from .security import (
@@ -157,6 +168,23 @@ class InviteIn(BaseModel):
 
 class RolePatchIn(BaseModel):
     role: str
+
+
+class ConfigValidateIn(BaseModel):
+    """template_id, opening sizes, glass, and selected catalog parts."""
+
+    model_config = {"extra": "ignore"}
+    template_id: str = ""
+    width_mm: Optional[int] = None
+    height_mm: Optional[int] = None
+    depth_mm: Optional[int] = None
+    depth2_mm: Optional[int] = None
+    angle_deg: Optional[int] = None
+    doors: Optional[int] = None
+    glass_thick_mm: Optional[int] = None
+    glass_kind: str = ""
+    part_ids: list[int] = Field(default_factory=list)
+    items: list[Any] = Field(default_factory=list)
 
 
 @app.get("/api/health")
@@ -669,19 +697,77 @@ def get_quote_pdf(quote_id: int, download: bool = False, user=Depends(current_us
     )
 
 
+def _evaluate_config(payload: dict, items: list[dict]) -> dict:
+    part_message = None
+    rows = {}
+    if items:
+        try:
+            rows = fetch_parts([item["id"] for item in items])
+        except HTTPException as exc:
+            if exc.status_code != 400:
+                raise
+            part_message = exc.detail if isinstance(exc.detail, str) else "В каталоге нет позиций"
+    prepared = parts_for_rules(rows, items) if rows else []
+    result = validate_config(payload, prepared)
+    if part_message:
+        result["errors"].append({"code": "part_id", "message": str(part_message)})
+        result["ok"] = False
+    return result
+
+
+@app.get("/api/templates")
+def templates_list():
+    """Construction templates. Static seed, no session required."""
+    return {"items": list_templates()}
+
+
+@app.post("/api/config/validate")
+def config_validate(body: ConfigValidateIn, request: Request, user=Depends(current_user)):
+    """Check a draft against the template. Does not save a quote."""
+    require_csrf(request)
+    items, item_errors = merge_selected_parts(body.items, body.part_ids)
+    payload = {
+        "template_id": body.template_id,
+        "width_mm": body.width_mm,
+        "height_mm": body.height_mm,
+        "depth_mm": body.depth_mm,
+        "depth2_mm": body.depth2_mm,
+        "angle_deg": body.angle_deg,
+        "doors": body.doors,
+        "glass_thick_mm": body.glass_thick_mm,
+        "glass_kind": body.glass_kind,
+    }
+    result = _evaluate_config(payload, items)
+    if item_errors:
+        result["errors"] = item_errors + result["errors"]
+        result["ok"] = False
+    return result
+
+
 @app.post("/api/quotes", status_code=201)
 def create_quote(body: QuoteIn, request: Request, user=Depends(current_user)):
     require_csrf(request)
     draft = normalize_quote(body)
-    parts = fetch_parts([item["id"] for item in draft["items"]])
+    validation = None
+    if draft.get("template_id"):
+        geometry = validate_config(draft, None)
+        if not geometry["ok"]:
+            raise validation_error(geometry)
+    parts = fetch_parts([item["id"] for item in draft["items"]]) if draft["items"] else {}
+    if draft.get("template_id"):
+        validation = quote_is_valid(draft, parts_for_rules(parts, draft["items"]))
+        if not validation["ok"]:
+            raise validation_error(validation)
     built = compose_quote(draft, parts)
     show_price = _show_price(user)
     size = f"{draft['width_mm']}x{draft['height_mm']}"
-    if draft["fence_type"] in ("corner", "niche") and draft["depth_mm"]:
+    if draft.get("depth_mm"):
         size += f"x{draft['depth_mm']}"
+    if draft.get("depth2_mm"):
+        size += f"x{draft['depth2_mm']}"
     detail = (
-        f"{draft['fence_type']} {size} glass={draft['glass_thick_mm']}/{draft['glass_kind']}"
-        f" items={len(draft['items'])}"
+        f"{draft.get('template_id') or draft['fence_type']} {size} "
+        f"glass={draft['glass_thick_mm']}/{draft['glass_kind']} items={len(draft['items'])}"
     )
     project_id = body.project_id
     if project_id is not None and project_id < 1:
@@ -692,9 +778,10 @@ def create_quote(body: QuoteIn, request: Request, user=Depends(current_user)):
         cur = conn.execute(
             """INSERT INTO quotes (
                  org_id, user_id, status, fence_type, width_mm, height_mm, depth_mm,
+                 template_id, depth2_mm, angle_deg, door_count,
                  glass_thick_mm, glass_kind, glass_area_m2, glass_unit_price, glass_sum,
                  hardware_sum, total, currency
-               ) VALUES (?,?, 'draft', ?,?,?,?,?,?,?,?,?,?,?, 'RUB')""",
+               ) VALUES (?,?, 'draft', ?,?,?,?, ?,?,?,?, ?,?,?,?,?,?,?, 'RUB')""",
             (
                 user["org_id"],
                 user["id"],
@@ -702,6 +789,10 @@ def create_quote(body: QuoteIn, request: Request, user=Depends(current_user)):
                 draft["width_mm"],
                 draft["height_mm"],
                 draft["depth_mm"],
+                draft.get("template_id"),
+                draft.get("depth2_mm"),
+                draft.get("angle_deg"),
+                draft.get("door_count"),
                 draft["glass_thick_mm"],
                 draft["glass_kind"],
                 built["glass_area_m2"],
@@ -753,6 +844,16 @@ def create_quote(body: QuoteIn, request: Request, user=Depends(current_user)):
                 "glass_kind": draft["glass_kind"],
                 "hardware_count": len(draft["items"]),
                 "project_id": project_id,
+                **(
+                    {
+                        "template_id": draft["template_id"],
+                        "depth2_mm": draft.get("depth2_mm"),
+                        "angle_deg": draft.get("angle_deg"),
+                        "door_count": draft.get("door_count"),
+                    }
+                    if draft.get("template_id")
+                    else {}
+                ),
             },
         )
         if project_id is not None:
@@ -769,7 +870,10 @@ def create_quote(body: QuoteIn, request: Request, user=Depends(current_user)):
         )
         row, items = _load_quote(conn, quote_id, user, with_items=True)
         quote = present_quote(row, items, show_price=show_price, include_lines=True)
-    return {"quote": quote}
+    payload = {"quote": quote}
+    if validation is not None:
+        payload["validation"] = validation
+    return payload
 
 
 @app.get("/api/projects")
