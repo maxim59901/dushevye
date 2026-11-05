@@ -29,6 +29,15 @@ from .projects import (
     project_meta,
     set_project_status,
 )
+from .catalog_compat import (
+    CompatError,
+    evaluate_compat,
+    apply_compat,
+    create_rule,
+    delete_rule,
+    list_rules,
+    load_compat_rules,
+)
 from .config_rules import list_templates, merge_selected_parts, validate_config
 from .quotes import (
     QuoteIn,
@@ -168,6 +177,21 @@ class InviteIn(BaseModel):
 
 class RolePatchIn(BaseModel):
     role: str
+
+
+class CompatRuleIn(BaseModel):
+    """A catalog allow/deny row. Points at a group, a name fragment, or a part id."""
+
+    model_config = {"extra": "ignore"}
+    effect: str = ""
+    group_id: str = ""
+    group_name: str = ""
+    part_id: Optional[int] = None
+    name_like: str = ""
+    glass_mm: Optional[int] = None
+    template_id: str = ""
+    template_kind: str = "any"
+    reason: str = ""
 
 
 class ConfigValidateIn(BaseModel):
@@ -586,6 +610,77 @@ def catalog_list(
     }
 
 
+def _compat_glass(glass_mm: Optional[int]) -> Optional[int]:
+    if glass_mm is None:
+        return None
+    if glass_mm < 4 or glass_mm > 19:
+        raise HTTPException(status_code=400, detail="Толщина стекла: целое число от 4 до 19 мм.")
+    return glass_mm
+
+
+@app.get("/api/catalog/compat")
+def catalog_compat(
+    glass_mm: Optional[int] = None,
+    template_id: Optional[str] = None,
+    user=Depends(current_user),
+):
+    """Allow/deny hints for the current glass and template. Any signed-in role."""
+    thick = _compat_glass(glass_mm)
+    template = (template_id or "").strip()
+    rules = load_compat_rules(int(user["org_id"]))
+    return evaluate_compat(thick, template, rules)
+
+
+@app.get("/api/catalog/compat/rules")
+def catalog_compat_rules_list(user=Depends(require_privileged)):
+    """Seed matrix plus this org's own rules. Manager is not allowed."""
+    return {"items": list_rules(int(user["org_id"]))}
+
+
+@app.post("/api/catalog/compat/rules", status_code=201)
+def catalog_compat_rules_create(body: CompatRuleIn, request: Request, user=Depends(require_privileged)):
+    require_csrf(request)
+    try:
+        rule = create_rule(int(user["org_id"]), int(user["id"]), body.model_dump())
+    except CompatError as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.message) from exc
+    with get_db() as conn:
+        audit(
+            conn,
+            int(user["org_id"]),
+            int(user["id"]),
+            "catalog_compat_create",
+            target_type="catalog_compat_rule",
+            target_id=rule["id"],
+            detail=(
+                f"{rule['effect']} group={rule['group_id'] or '-'} "
+                f"part={rule['part_id'] or '-'} glass={rule['glass_mm'] or '-'} "
+                f"{rule['reason']}"
+            )[:500],
+        )
+    return {"rule": rule}
+
+
+@app.delete("/api/catalog/compat/rules/{rule_id}")
+def catalog_compat_rules_delete(rule_id: int, request: Request, user=Depends(require_privileged)):
+    require_csrf(request)
+    try:
+        result = delete_rule(int(user["org_id"]), rule_id)
+    except CompatError as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.message) from exc
+    with get_db() as conn:
+        audit(
+            conn,
+            int(user["org_id"]),
+            int(user["id"]),
+            "catalog_compat_delete",
+            target_type="catalog_compat_rule",
+            target_id=rule_id,
+            detail=f"deleted rule {rule_id}",
+        )
+    return result
+
+
 @app.get("/api/catalog/{part_id}")
 def catalog_one(part_id: int, user=Depends(current_user)):
     show_price = user["role"] in PRICE_ROLES
@@ -697,7 +792,7 @@ def get_quote_pdf(quote_id: int, download: bool = False, user=Depends(current_us
     )
 
 
-def _evaluate_config(payload: dict, items: list[dict]) -> dict:
+def _evaluate_config(payload: dict, items: list[dict], org_id: int) -> dict:
     part_message = None
     rows = {}
     if items:
@@ -709,6 +804,7 @@ def _evaluate_config(payload: dict, items: list[dict]) -> dict:
             part_message = exc.detail if isinstance(exc.detail, str) else "В каталоге нет позиций"
     prepared = parts_for_rules(rows, items) if rows else []
     result = validate_config(payload, prepared)
+    result = apply_compat(result, payload, prepared, load_compat_rules(org_id))
     if part_message:
         result["errors"].append({"code": "part_id", "message": str(part_message)})
         result["ok"] = False
@@ -737,7 +833,7 @@ def config_validate(body: ConfigValidateIn, request: Request, user=Depends(curre
         "glass_thick_mm": body.glass_thick_mm,
         "glass_kind": body.glass_kind,
     }
-    result = _evaluate_config(payload, items)
+    result = _evaluate_config(payload, items, int(user["org_id"]))
     if item_errors:
         result["errors"] = item_errors + result["errors"]
         result["ok"] = False
@@ -755,7 +851,9 @@ def create_quote(body: QuoteIn, request: Request, user=Depends(current_user)):
             raise validation_error(geometry)
     parts = fetch_parts([item["id"] for item in draft["items"]]) if draft["items"] else {}
     if draft.get("template_id"):
-        validation = quote_is_valid(draft, parts_for_rules(parts, draft["items"]))
+        validation = quote_is_valid(
+            draft, parts_for_rules(parts, draft["items"]), org_id=int(user["org_id"])
+        )
         if not validation["ok"]:
             raise validation_error(validation)
     built = compose_quote(draft, parts)

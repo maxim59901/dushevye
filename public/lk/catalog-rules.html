@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Правила каталога — ЛК Душевые</title>
+<link rel="stylesheet" href="lk.css"/>
+<style>
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
+.table-wrap{overflow-x:auto}
+.table-wrap .btn{white-space:nowrap}
+.errnote{background:#FEE2E2;color:var(--bad);border-radius:12px;padding:10px 12px;font-size:13px;margin-top:10px}
+.oknote{background:#E8F6EE;color:var(--ok);border-radius:12px;padding:10px 12px;font-size:13px;margin-top:10px}
+@media (max-width:800px){
+  .form-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">ДУШЕВЫЕ · ЛК</div>
+    <div class="role-pill">Каталог · правила</div>
+    <nav>
+      <a href="catalog-rules.html" class="active">Правила каталога</a>
+      <a href="#" id="backCabinet">← В кабинет</a>
+      <a href="catalog.html">Каталог фурнитуры</a>
+      <a href="../cfg.html">Конфигуратор</a>
+      <a href="index.html">Все роли</a>
+      <a href="../index.html">На витрину</a>
+    </nav>
+    <div class="foot">Правила ссылаются на группу, фрагмент названия или part_id. Строки поставщиков в каталоге не меняются.</div>
+  </aside>
+  <div class="main">
+    <div class="top">
+      <h1>Правила каталога</h1>
+      <div class="meta">
+        <span class="badge demo">Вход</span>
+        <span class="badge muted" id="countBadge">—</span>
+      </div>
+    </div>
+    <div class="content">
+      <p class="lead" style="color:var(--muted);margin:0 0 16px;font-size:14px">Матрица «группа × толщина» и тип конструкции: дверь или глухая панель. Стартовый набор уже в базе. Своё правило добавляется здесь, без правки кода. Менеджер видит только эффект в конфигураторе.</p>
+      <div class="card">
+        <h2>Список</h2>
+        <p class="lead" id="listNote">Загрузка…</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Источник</th>
+                <th>Эффект</th>
+                <th>Группа</th>
+                <th>Фрагмент / позиция</th>
+                <th>Стекло</th>
+                <th>Шаблон</th>
+                <th>Причина</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card" style="margin-top:14px">
+        <h2>Новое правило</h2>
+        <p class="lead">Пустое поле «стекло» или «шаблон» значит «для любой». Deny скрывает позицию в конфигураторе и не даёт сохранить КП. Allow — подсказка, она не отменяет deny.</p>
+        <form id="ruleForm">
+          <div class="form-grid">
+            <div class="field">
+              <label for="effect">Эффект</label>
+              <select id="effect">
+                <option value="deny">deny — нельзя</option>
+                <option value="allow">allow — можно</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="groupId">Группа</label>
+              <select id="groupId">
+                <option value="">Любая</option>
+                <option value="hinges">Петли</option>
+                <option value="handles">Ручки</option>
+                <option value="connectors">Коннекторы</option>
+                <option value="rods">Штанги / трубы / профили</option>
+                <option value="seals">Уплотнители</option>
+                <option value="sliding">Раздвижные системы</option>
+                <option value="other">Прочее</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="nameLike">Фрагмент названия или артикула</label>
+              <input id="nameLike" type="text" maxlength="80" placeholder="например 8-10 или только 10"/>
+            </div>
+            <div class="field">
+              <label for="partId">part_id</label>
+              <input id="partId" type="number" min="1" step="1" placeholder="необязательно"/>
+            </div>
+            <div class="field">
+              <label for="glassMm">Толщина стекла, мм</label>
+              <input id="glassMm" type="number" min="4" max="19" step="1" placeholder="пусто = любая"/>
+            </div>
+            <div class="field">
+              <label for="templateId">Шаблон</label>
+              <select id="templateId"><option value="">Любой</option></select>
+            </div>
+            <div class="field">
+              <label for="templateKind">Дверь или глухая</label>
+              <select id="templateKind">
+                <option value="any">Любая конструкция</option>
+                <option value="door">Есть дверь</option>
+                <option value="fixed">Только глухая панель</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="reason">Короткая причина</label>
+              <input id="reason" type="text" maxlength="240" required placeholder="почему нельзя или можно"/>
+            </div>
+          </div>
+          <div class="row">
+            <button class="btn" type="submit">Добавить правило</button>
+          </div>
+          <div id="formNote"></div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="auth.js"></script>
+<script>
+(async function () {
+  const user = await Auth.requireCabinet();
+  if (!user) return;
+  const back = document.getElementById('backCabinet');
+  if (back) back.href = Auth.cabinetUrl(user);
+
+  const rowsEl = document.getElementById('rows');
+  const listNote = document.getElementById('listNote');
+  const countBadge = document.getElementById('countBadge');
+  const formNote = document.getElementById('formNote');
+  const kindLabel = { any: 'любая', door: 'дверь', fixed: 'глухая' };
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function note(text, ok) {
+    formNote.className = ok ? 'oknote' : 'errnote';
+    formNote.textContent = text || '';
+    formNote.style.display = text ? 'block' : 'none';
+  }
+
+  async function loadTemplates() {
+    const select = document.getElementById('templateId');
+    try {
+      const data = await Auth.api('/api/templates');
+      (data.items || []).forEach((tpl) => {
+        const opt = document.createElement('option');
+        opt.value = tpl.id;
+        opt.textContent = tpl.name;
+        select.appendChild(opt);
+      });
+    } catch (e) {}
+  }
+
+  function render(items) {
+    const list = items || [];
+    const seed = list.filter((row) => row.origin === 'seed').length;
+    const custom = list.length - seed;
+    countBadge.textContent = list.length + ' правил';
+    listNote.textContent = 'Стартовых: ' + seed + '. Своих: ' + custom + '. Удаление стартового не восстанавливается само, пока база не создана заново.';
+    if (!list.length) {
+      rowsEl.innerHTML = '<tr><td colspan="8">Правил нет</td></tr>';
+      return;
+    }
+    rowsEl.innerHTML = list.map((row) => {
+      const target = [
+        row.name_like ? ('«' + row.name_like + '»') : '',
+        row.part_id ? ('part ' + row.part_id) : ''
+      ].filter(Boolean).join(' · ') || 'вся группа';
+      const glass = row.glass_mm == null ? 'любая' : (row.glass_mm + ' мм');
+      const tpl = [row.template_id || '', kindLabel[row.template_kind] || row.template_kind].filter(Boolean).join(' · ');
+      const origin = row.origin === 'seed'
+        ? '<span class="tag">стартовое</span>'
+        : '<span class="tag info">своё</span>';
+      const effect = row.effect === 'deny'
+        ? '<span class="tag bad">deny</span>'
+        : '<span class="tag ok">allow</span>';
+      return '<tr>' +
+        '<td>' + origin + '</td>' +
+        '<td>' + effect + '</td>' +
+        '<td>' + esc(row.group_name || row.group_id || '—') + '</td>' +
+        '<td>' + esc(target) + '</td>' +
+        '<td>' + esc(glass) + '</td>' +
+        '<td>' + esc(tpl || 'любой') + '</td>' +
+        '<td>' + esc(row.reason || '') + '</td>' +
+        '<td><button class="btn ghost" type="button" data-del="' + esc(row.id) + '">Удалить</button></td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  async function load() {
+    const data = await Auth.api('/api/catalog/compat/rules');
+    render(data.items || []);
+  }
+
+  rowsEl.addEventListener('click', async (ev) => {
+    const btn = ev.target.closest('[data-del]');
+    if (!btn) return;
+    const id = Number(btn.getAttribute('data-del'));
+    if (!id || !window.confirm('Удалить правило №' + id + '?')) return;
+    btn.disabled = true;
+    try {
+      await Auth.api('/api/catalog/compat/rules/' + id, { method: 'DELETE' });
+      note('Правило удалено.', true);
+      await load();
+    } catch (e) {
+      note(e.message || 'Не удалось удалить', false);
+      btn.disabled = false;
+    }
+  });
+
+  document.getElementById('ruleForm').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    note('', true);
+    const partRaw = document.getElementById('partId').value.trim();
+    const glassRaw = document.getElementById('glassMm').value.trim();
+    const body = {
+      effect: document.getElementById('effect').value,
+      group_id: document.getElementById('groupId').value,
+      name_like: document.getElementById('nameLike').value.trim(),
+      part_id: partRaw ? Number(partRaw) : null,
+      glass_mm: glassRaw ? Number(glassRaw) : null,
+      template_id: document.getElementById('templateId').value,
+      template_kind: document.getElementById('templateKind').value,
+      reason: document.getElementById('reason').value.trim()
+    };
+    try {
+      await Auth.api('/api/catalog/compat/rules', { method: 'POST', body: body });
+      document.getElementById('reason').value = '';
+      document.getElementById('nameLike').value = '';
+      document.getElementById('partId').value = '';
+      note('Правило добавлено. В конфигураторе оно уже действует.', true);
+      await load();
+    } catch (e) {
+      note(e.message || 'Не удалось сохранить', false);
+    }
+  });
+
+  try {
+    await loadTemplates();
+    await load();
+  } catch (e) {
+    listNote.textContent = e.message || 'Не удалось загрузить правила';
+  }
+})();
+</script>
+</body>
+</html>

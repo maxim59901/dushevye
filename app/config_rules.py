@@ -456,6 +456,19 @@ def _pair_errors(template: dict[str, Any], parts: list[dict[str, Any]]) -> list[
     return errors
 
 
+def matching_thickness_denial(part: dict[str, Any], glass_mm: int) -> Optional[tuple[str, str]]:
+    """(rule id, message) when this part's series rejects the given thickness."""
+    rule = _matching_thickness_rule(part)
+    if rule is None:
+        return None
+    allowed = tuple(int(value) for value in rule["thickness_mm"])
+    if int(glass_mm) in allowed:
+        return None
+    name = _clip(part.get("name") or part.get("sku") or "Позиция", 120)
+    message = f"«{name}» {rule['text']} и не ставится на стекло {int(glass_mm)} мм."
+    return rule["id"], message
+
+
 def _thickness_errors(payload: dict[str, Any], parts: list[dict[str, Any]]) -> list[dict[str, str]]:
     raw = payload.get("glass_thick_mm")
     if not isinstance(raw, (int, float)) or isinstance(raw, bool):
@@ -463,19 +476,11 @@ def _thickness_errors(payload: dict[str, Any], parts: list[dict[str, Any]]) -> l
     thick = int(raw)
     errors: list[dict[str, str]] = []
     for part in parts:
-        rule = _matching_thickness_rule(part)
-        if rule is None:
+        found = matching_thickness_denial(part, thick)
+        if found is None:
             continue
-        allowed = tuple(int(value) for value in rule["thickness_mm"])
-        if thick in allowed:
-            continue
-        name = _clip(part.get("name") or part.get("sku") or "Позиция", 120)
-        errors.append(
-            {
-                "code": rule["id"],
-                "message": f"«{name}» {rule['text']} и не ставится на стекло {thick} мм.",
-            }
-        )
+        code, message = found
+        errors.append({"code": code, "message": message})
     return errors
 
 

@@ -92,6 +92,7 @@
       const map = {
         admin: 'admin', owner: 'owner', accountant: 'accountant', manager: 'manager',
         measurer: 'measurer', installer: 'installer', supply: 'supply', production: 'production',
+        'catalog-rules': 'admin',
       };
       return map[f] || null;
     },

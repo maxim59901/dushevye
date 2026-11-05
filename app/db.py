@@ -167,6 +167,40 @@ CREATE INDEX IF NOT EXISTS idx_versions_entity
   ON entity_versions(org_id, entity_type, entity_id, id);
 CREATE INDEX IF NOT EXISTS idx_versions_actor
   ON entity_versions(org_id, actor_id, id);
+
+CREATE TABLE IF NOT EXISTS app_meta (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS catalog_compat_rules (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  org_id INTEGER REFERENCES organizations(id),
+  origin TEXT NOT NULL DEFAULT 'custom',
+  effect TEXT NOT NULL,
+  group_id TEXT NOT NULL DEFAULT '',
+  group_name TEXT NOT NULL DEFAULT '',
+  part_id INTEGER,
+  name_like TEXT NOT NULL DEFAULT '',
+  glass_mm INTEGER,
+  template_id TEXT NOT NULL DEFAULT '',
+  template_kind TEXT NOT NULL DEFAULT 'any',
+  reason TEXT NOT NULL,
+  created_by INTEGER REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  CHECK (origin IN ('seed', 'custom')),
+  CHECK (effect IN ('allow', 'deny')),
+  CHECK (template_kind IN ('any', 'door', 'fixed')),
+  CHECK (length(trim(reason)) > 0),
+  CHECK (
+    length(trim(group_id)) > 0
+    OR length(trim(group_name)) > 0
+    OR part_id IS NOT NULL
+    OR length(trim(name_like)) > 0
+  )
+);
+
+CREATE INDEX IF NOT EXISTS idx_compat_rules_org ON catalog_compat_rules(org_id);
 """
 
 
@@ -203,6 +237,9 @@ def init_db(path: Path | None = None) -> None:
     with connect(path) as conn:
         conn.executescript(SCHEMA)
         _migrate_quotes(conn)
+        from .catalog_compat import seed_catalog_compat
+
+        seed_catalog_compat(conn)
         conn.commit()
 
 

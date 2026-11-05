@@ -15,6 +15,7 @@ from typing import Any, Optional
 from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
+from .catalog_compat import apply_compat, load_compat_rules
 from .config_rules import get_template, needed_dimension_ids, template_label, validate_config
 
 FENCE_LABEL = {
@@ -225,9 +226,14 @@ def validation_error(result: dict[str, Any]) -> HTTPException:
     return HTTPException(status_code=400, detail=result)
 
 
-def quote_is_valid(draft: dict[str, Any], parts: list[dict[str, Any]]) -> dict[str, Any]:
-    """Full template check. Empty parts still warn about missing hinges."""
+def quote_is_valid(
+    draft: dict[str, Any],
+    parts: list[dict[str, Any]],
+    org_id: Optional[int] = None,
+) -> dict[str, Any]:
+    """Full template check plus catalog compat. Empty parts still warn about missing hinges."""
     result = validate_config(draft, parts)
+    result = apply_compat(result, draft, parts, load_compat_rules(org_id))
     if draft.get("template_id") and result["ok"]:
         thick = draft["glass_thick_mm"]
         if thick not in GLASS_RATES["per_sqm"]:
@@ -261,7 +267,7 @@ def fetch_parts(ids: list[int]) -> dict[int, sqlite3.Row]:
     conn.row_factory = sqlite3.Row
     try:
         rows = conn.execute(
-            f"""SELECT p.id, p.sku, p.name, p.price, p.source, p.group_id,
+            f"""SELECT p.id, p.sku, p.name, p.price, p.source, p.group_id, p.glass_mm,
                        g.title_ru AS group_title
                 FROM parts p
                 LEFT JOIN part_groups g ON g.id = p.group_id
@@ -284,12 +290,16 @@ def parts_for_rules(rows: dict[int, sqlite3.Row], items: list[dict[str, int]]) -
         row = rows[item["id"]]
         keys = row.keys()
         group_id = row["group_id"] if "group_id" in keys else ""
+        glass = row["glass_mm"] if "glass_mm" in keys else ""
+        title = row["group_title"] if "group_title" in keys else ""
         prepared.append(
             {
                 "id": int(row["id"]),
                 "sku": row["sku"] or "",
                 "name": row["name"] or "",
                 "group_id": group_id or "",
+                "group_title": title or "",
+                "glass_mm": glass or "",
                 "qty": int(item["qty"]),
             }
         )
