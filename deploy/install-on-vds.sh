@@ -15,6 +15,16 @@ if [[ -f "$PUB/index.html" ]]; then
 fi
 cp -a "$BASE/public/index.html" "$PUB/index.html"
 cp -a "$BASE/public/cfg.html" "$PUB/cfg.html"
+# other root public assets (assistant widget etc.)
+for f in "$BASE"/public/*; do
+  base=$(basename "$f")
+  case "$base" in
+    index.html|cfg.html|lk|media|README.md) continue ;;
+  esac
+  if [[ -f "$f" ]]; then
+    cp -a "$f" "$PUB/$base"
+  fi
+done
 rm -rf "$PUB/lk"
 cp -a "$BASE/public/lk" "$PUB/lk"
 # media (product photos)
@@ -43,6 +53,9 @@ elif [[ ! -f "$DATA/catalog.db" ]]; then
 fi
 chown -R www-data:www-data "$PUB/media" 2>/dev/null || true
 cp -a "$BASE/README.md" "$SITE/README.md" 2>/dev/null || true
+if [[ -f "$BASE/DEPLOYED_SHA.txt" ]]; then
+  cp -a "$BASE/DEPLOYED_SHA.txt" "$SITE/DEPLOYED_SHA.txt"
+fi
 
 # --- backup cron ---
 if [[ -f "$BASE/dushevye-backup.sh" ]]; then
