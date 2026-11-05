@@ -201,6 +201,20 @@ CREATE TABLE IF NOT EXISTS catalog_compat_rules (
 );
 
 CREATE INDEX IF NOT EXISTS idx_compat_rules_org ON catalog_compat_rules(org_id);
+
+CREATE TABLE IF NOT EXISTS vitrine_leads (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  org_id INTEGER REFERENCES organizations(id) ON DELETE SET NULL,
+  name TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  comment TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'заявка с витрины',
+  template_id TEXT NOT NULL DEFAULT '',
+  excerpt TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_vitrine_leads_org ON vitrine_leads(org_id, created_at);
 """
 
 

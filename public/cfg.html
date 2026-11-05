@@ -911,14 +911,29 @@ tr.just-saved{background:#FDF6F2}
     render();
     refreshCompat();
   }
+  function applyVitrinePreset(){
+    // Deep link from the storefront assistant: ?template=corner_two&width_mm=900&depth_mm=900
+    const params = new URLSearchParams(location.search);
+    const id = (params.get('template') || '').trim();
+    if (id && state.templates.some((tpl) => tpl.id === id)) state.templateId = id;
+    const preset = {};
+    ['width_mm', 'depth_mm', 'height_mm', 'depth2_mm', 'angle_deg'].forEach((key) => {
+      const raw = (params.get(key) || '').trim();
+      if (!/^\d{2,4}$/.test(raw)) return;
+      const n = Number(raw);
+      if (!Number.isInteger(n) || n < 10 || n > 4000) return;
+      preset[key] = String(n);
+    });
+    renderTemplates();
+    renderDims(preset);
+    renderGlass();
+    updateSlotHint();
+  }
   async function loadTemplates(){
     const data = await apiGet('/api/templates');
     state.templates = data.items || [];
     if (!state.templateId && state.templates.length) state.templateId = state.templates[0].id;
-    renderTemplates();
-    renderDims(readDims());
-    renderGlass();
-    updateSlotHint();
+    applyVitrinePreset();
   }
 
   function render(){

@@ -1,6 +1,7 @@
-"""Password hashing, roles, CSRF tokens, and login rate limiting."""
+"""Password hashing, roles, CSRF tokens, and rate limiting."""
 from __future__ import annotations
 
+import ipaddress
 import secrets
 import string
 import threading
@@ -113,3 +114,56 @@ def check_login_rate_limit(key: str) -> None:
 def clear_login_rate(key: str) -> None:
     with _login_lock:
         _login_attempts.pop(key, None)
+
+
+# Public vitrine assistant: 10 requests / minute / IP, separate bucket per route.
+PUBLIC_RATE_LIMIT = 10
+PUBLIC_RATE_WINDOW_SEC = 60
+
+_public_lock = threading.Lock()
+_public_hits: dict[str, list[float]] = {}
+
+
+def normalize_ip(value: Optional[str]) -> Optional[str]:
+    raw = (value or "").strip()
+    if not raw:
+        return None
+    try:
+        return str(ipaddress.ip_address(raw))
+    except ValueError:
+        return None
+
+
+def check_public_rate_limit(
+    bucket: str,
+    ip: str,
+    *,
+    limit: int = PUBLIC_RATE_LIMIT,
+    window: float = PUBLIC_RATE_WINDOW_SEC,
+) -> None:
+    """Raise ValueError('rate_limited') when this IP is over the cap for the bucket.
+
+    The attempt is recorded only when it is still allowed, same as login.
+    """
+    key = f"{(bucket or 'public').strip()}|{(ip or 'unknown').strip()}"
+    now = time.time()
+    with _public_lock:
+        if len(_public_hits) > 5000:
+            fresh: dict[str, list[float]] = {}
+            for name, stamps in _public_hits.items():
+                kept = [stamp for stamp in stamps if now - stamp < window]
+                if kept:
+                    fresh[name] = kept
+            _public_hits.clear()
+            _public_hits.update(fresh)
+        hits = [stamp for stamp in _public_hits.get(key, []) if now - stamp < window]
+        if len(hits) >= limit:
+            _public_hits[key] = hits
+            raise ValueError("rate_limited")
+        hits.append(now)
+        _public_hits[key] = hits
+
+
+def reset_public_rate_limits() -> None:
+    with _public_lock:
+        _public_hits.clear()

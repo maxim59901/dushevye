@@ -60,14 +60,17 @@ from .security import (
     ROLE_PAGE,
     ROLES,
     check_login_rate_limit,
+    check_public_rate_limit,
     clear_login_rate,
     csrf_ok,
     generate_password,
     hash_password,
     login_rate_key,
     new_csrf_token,
+    normalize_ip,
     verify_password,
 )
+from .vitrine import VitrineChatIn, VitrineLeadIn, answer_chat, create_vitrine_lead
 
 SECRET = os.environ.get("DUSHEVYE_SESSION_SECRET") or secrets.token_hex(32)
 COOKIE_NAME = "dushevye_session"
@@ -1114,6 +1117,56 @@ def stock_reserve(body: StockMoveIn, request: Request, user=Depends(current_user
 @app.post("/api/stock/release")
 def stock_release(body: StockMoveIn, request: Request, user=Depends(current_user)):
     return _stock_move("release", body, request, user)
+
+
+def vitrine_ip(request: Request) -> str:
+    """Client address for the public vitrine limiter.
+
+    Nginx overwrites X-Real-IP with $remote_addr. The first X-Forwarded-For
+    hop is chosen by the caller, so this limiter ignores that header.
+    """
+    real = normalize_ip(request.headers.get("x-real-ip"))
+    if real:
+        return real
+    host = request.client.host if request.client and request.client.host else ""
+    return normalize_ip(host) or host or "unknown"
+
+
+def _limit_vitrine(request: Request, bucket: str) -> None:
+    try:
+        check_public_rate_limit(bucket, vitrine_ip(request))
+    except ValueError:
+        raise HTTPException(
+            status_code=429,
+            detail="Слишком много запросов с этого адреса. Подождите минуту.",
+            headers={"Retry-After": "60"},
+        )
+
+
+@app.post("/api/vitrine/chat")
+def vitrine_chat(body: VitrineChatIn, request: Request):
+    """Public storefront assistant. Guests have no session, so there is no CSRF cookie."""
+    _limit_vitrine(request, "vitrine_chat")
+    return answer_chat(body.message, body.history)
+
+
+@app.post("/api/vitrine/leads", status_code=201)
+def vitrine_lead(body: VitrineLeadIn, request: Request):
+    """Store a guest request. Status is always «заявка с витрины»."""
+    _limit_vitrine(request, "vitrine_lead")
+    with get_db() as conn:
+        lead = create_vitrine_lead(conn, body)
+        if lead["org_id"]:
+            audit(
+                conn,
+                lead["org_id"],
+                None,
+                "vitrine_lead",
+                target_type="vitrine_lead",
+                target_id=lead["id"],
+                detail=f"{lead['name']} {lead['phone']}"[:300],
+            )
+    return {"ok": True, "id": lead["id"], "status": lead["status"]}
 
 
 def _maybe_serve_public() -> None:
