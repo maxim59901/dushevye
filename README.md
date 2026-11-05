@@ -40,6 +40,27 @@ API слушает `127.0.0.1:8088` (`/api/health`). Стартовый паро
 
 Каталог (`/api/catalog`) читает SQLite. Файла `catalog.db` в git нет: его собирает `python -m parsers` (зависимости в `parsers/requirements.txt`) в `data/catalog/catalog.db`. Пока базы нет, каталог отвечает 503, auth при этом работает.
 
+## Конфигуратор КП
+
+`public/cfg.html` — черновик спецификации. Стекло: площадь проёма × ставки `GLASS_RATES` в этом файле (оценка, в строке BOM так и подписана). Фурнитура: позиции `GET /api/catalog` (фильтры `group`, `source`, `q`). В сумму попадает поле `price` из ответа. Демо-наборы «базовый / усиленный» удалены.
+
+Закуп в JSON видят admin, owner и accountant — как в ЛК. У остальных ролей `price` пустой: позицию можно добавить в спецификацию, итог она не увеличивает.
+
+Один origin для страницы и cookie (на VDS это уже делает nginx; локально — флаг ниже). `DUSHEVYE_SERVE_PUBLIC` на сервере не включайте.
+
+```bash
+export DUSHEVYE_SESSION_SECRET=dev-only-not-for-production
+export DUSHEVYE_DB="$PWD/data/app.db"
+export DUSHEVYE_CATALOG_DB="$PWD/data/catalog/catalog.db"
+export DUSHEVYE_ADMIN_PASS_FILE="$PWD/secrets/initial-admin.txt"
+export DUSHEVYE_SERVE_PUBLIC=1
+mkdir -p secrets data/catalog
+.venv/bin/python -m app.seed
+.venv/bin/python -m app
+```
+
+Откройте http://127.0.0.1:8088/cfg.html . Без сессии каталог отвечает 401 — кнопка «Войти» возвращает на конфигуратор (`/lk/login.html?next=/cfg.html`). Пароль админа лежит в `secrets/initial-admin.txt`. Дальше: группа (петли, ручки, уплотнители…), поиск, «Добавить в КП». В превью — стекло и фурнитура (артикул, название, количество, цена, сумма) и итог. Печать/PDF по-прежнему через `window.print()`: форма скрывается, таблица остаётся.
+
 Парсеры:
 
 ```bash

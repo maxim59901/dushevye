@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Конфигуратор КП — Душевые</title>
-<meta name="description" content="Черновик коммерческого предложения по душевому ограждению. Цены примерные."/>
+<meta name="description" content="Черновик коммерческого предложения: фурнитура из каталога, стекло по оценке площади."/>
 <style>
 :root{--graphite:#2B2F33;--accent:#C45A2C;--bg:#F7F7F5;--muted:#6B7280;--white:#fff;--line:#E5E7EB;--soft:#EEF0F2}
 *{box-sizing:border-box}
@@ -17,39 +17,59 @@ header{display:flex;align-items:center;justify-content:space-between;gap:16px;pa
 .btn{display:inline-flex;align-items:center;justify-content:center;background:var(--accent);color:#fff;border:0;border-radius:10px;padding:11px 18px;font-weight:600;cursor:pointer;font-size:14px}
 .btn.ghost{background:transparent;color:var(--graphite);border:1px solid var(--graphite)}
 .btn:hover{filter:brightness(.97)}
-.wrap{max-width:1180px;margin:0 auto;padding:28px 32px 56px;display:grid;grid-template-columns:1.05fr .95fr;gap:22px;align-items:start}
+.btn:disabled{opacity:.45;cursor:default;filter:none}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 32px 56px;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);gap:22px;align-items:start}
 h1{font-size:28px;margin:0 0 6px;letter-spacing:-.02em}
 .lead{margin:0 0 18px;color:var(--muted);font-size:15px}
 .panel{background:var(--white);border:1px solid var(--line);border-radius:16px;padding:20px}
 .panel h2{font-size:15px;margin:0 0 12px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
 .field{margin-bottom:14px}
 .field label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
-.field .hint{display:block;font-size:12px;color:var(--muted);font-weight:400;margin-top:4px}
+.field .hint,.hint{display:block;font-size:12px;color:var(--muted);font-weight:400;margin-top:4px}
 .seg{display:flex;flex-wrap:wrap;gap:8px}
-.seg label{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:9px 12px;cursor:pointer;font-size:13px;font-weight:500;background:var(--white)}
+.seg label,.seg button{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:9px 12px;cursor:pointer;font-size:13px;font-weight:500;background:var(--white);font-family:inherit;color:inherit}
 .seg input{accent-color:var(--accent)}
-.seg label:has(input:checked){border-color:var(--accent);background:#FDF6F2}
+.seg label:has(input:checked),.seg button.active{border-color:var(--accent);background:#FDF6F2}
+.seg button:disabled{opacity:.4;cursor:default}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
-input[type=number],select{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:inherit;background:#fff;color:var(--graphite)}
-input[type=number]:focus,select:focus{outline:2px solid rgba(196,90,44,.25);border-color:var(--accent)}
+input[type=number],input[type=search],select{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:inherit;background:#fff;color:var(--graphite)}
+input[type=number]:focus,input[type=search]:focus,select:focus{outline:2px solid rgba(196,90,44,.25);border-color:var(--accent)}
 .preview{position:sticky;top:76px}
 .preview .badge{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);background:#FDF6F2;border-radius:999px;padding:4px 10px;margin-bottom:10px}
 .preview .title{font-size:20px;font-weight:700;margin:0 0 4px}
 .preview .sub{color:var(--muted);font-size:13px;margin:0 0 16px}
+.table-wrap{overflow-x:auto;max-width:100%}
 table{width:100%;border-collapse:collapse;font-size:14px}
-th,td{padding:8px 0;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th,td{padding:8px 6px 8px 0;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
 th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
 td.num,th.num{text-align:right;white-space:nowrap}
+td.sku{font-size:12px;font-weight:700;white-space:nowrap}
 .total{display:flex;justify-content:space-between;align-items:baseline;margin-top:14px;padding-top:12px;border-top:2px solid var(--graphite)}
 .total .sum{font-size:24px;font-weight:700}
 .disclaimer{margin-top:12px;font-size:12px;color:var(--muted);background:var(--soft);border-radius:10px;padding:10px 12px}
 .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
 .foot{max-width:1180px;margin:0 auto;padding:0 32px 32px;color:var(--muted);font-size:13px}
+.chosen{list-style:none;margin:4px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
+.chosen li{display:grid;grid-template-columns:minmax(0,1fr) 76px auto auto;gap:8px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.chosen .sku{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.chosen .nm{font-size:13px;font-weight:600}
+.chosen input[type=number]{padding:8px}
+.mini{background:#fff;border:1px solid var(--line);border-radius:8px;padding:7px 10px;cursor:pointer;font:inherit;font-size:12px;font-weight:600;color:var(--graphite)}
+.mini:hover{border-color:var(--accent);color:var(--accent)}
+.add-row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.add-row .field{margin:0;width:120px}
 @media (max-width:900px){
-  header{padding:12px 16px}.wrap{grid-template-columns:1fr;padding:20px 16px 40px}
+  header{flex-wrap:wrap;padding:12px 16px}
+  header .nav{order:3;width:100%}
+  .wrap{grid-template-columns:minmax(0,1fr);padding:20px 16px 40px}
   .preview{position:static}.grid2,.grid3{grid-template-columns:1fr}
   .foot{padding:0 16px 24px}
+  .chosen li{grid-template-columns:minmax(0,1fr)}
+  .seg button{white-space:normal;text-align:left}
+  th,td{padding:6px 4px 6px 0}
+  table{font-size:12px}
+  td.sku{white-space:normal}
 }
 @media print{
   body{background:#fff}
@@ -59,6 +79,9 @@ td.num,th.num{text-align:right;white-space:nowrap}
   .panel{border:0;padding:0;box-shadow:none}
   .form-panel{display:none!important}
   .preview{position:static}
+  .table-wrap{overflow:visible}
+  table{font-size:11px}
+  td.sku{white-space:normal}
   .disclaimer{border:1px solid #ccc;background:#fff}
   a[href]::after{content:""}
 }
@@ -70,14 +93,15 @@ td.num,th.num{text-align:right;white-space:nowrap}
   <div class="nav">
     <a href="index.html">Витрина</a>
     <a href="index.html#types">Типы</a>
-    <a href="index.html#contacts">Контакты</a>
+    <a href="lk/catalog.html">Каталог</a>
+    <a href="lk/login.html?next=%2Fcfg.html" id="loginLink">Войти</a>
   </div>
   <button class="btn ghost no-print" type="button" onclick="window.print()">Печать / PDF</button>
 </header>
 <main class="wrap">
   <section class="panel form-panel">
     <h1>Конфигуратор КП</h1>
-    <p class="lead">Черновик для производства и дилеров. Цены зашиты как демо-константы — это не прайс и не оферта.</p>
+    <p class="lead">Черновик для производства. Фурнитура и цена закупа берутся из каталога. Стекло считается по площади и ставке — финальный расчёт после замера.</p>
 
     <div class="panel" style="padding:16px;margin-bottom:14px;background:var(--soft);border:0">
       <h2>1. Тип конструкции</h2>
@@ -127,79 +151,192 @@ td.num,th.num{text-align:right;white-space:nowrap}
           </div>
         </div>
       </div>
+      <span class="hint">Оценка: площадь × ставка за м² × коэффициент вида и типа. Ставки заданы в конфигураторе отдельно от фурнитуры.</span>
     </div>
 
     <div class="panel" style="padding:16px;background:var(--soft);border:0">
-      <h2>4. Фурнитура</h2>
-      <div class="seg">
-        <label><input type="radio" name="hw" value="base" checked> Базовый набор</label>
-        <label><input type="radio" name="hw" value="strong"> Усиленный</label>
+      <h2>4. Фурнитура из каталога</h2>
+      <p class="hint" id="hwStatus">Загрузка каталога…</p>
+      <div id="hwAuth" hidden>
+        <a class="btn" href="lk/login.html?next=%2Fcfg.html">Войти и открыть каталог</a>
       </div>
-      <span class="hint" style="display:block;margin-top:8px">Заглушки: петли/ролики, ручки, уплотнители — без реального склада.</span>
+      <div id="hwPicker" hidden>
+        <div class="field">
+          <label>Группа</label>
+          <div class="seg" id="hwGroups"></div>
+        </div>
+        <div class="grid2">
+          <div class="field">
+            <label for="hwSource">Производитель</label>
+            <select id="hwSource"><option value="">Все</option></select>
+          </div>
+          <div class="field">
+            <label for="hwQ">Поиск</label>
+            <input id="hwQ" type="search" placeholder="артикул или название" autocomplete="off"/>
+          </div>
+        </div>
+        <div class="field">
+          <label for="hwPick">Позиция</label>
+          <select id="hwPick"></select>
+          <span class="hint" id="hwPickMeta"></span>
+        </div>
+        <div class="add-row">
+          <div class="field">
+            <label for="hwQty">Количество, шт</label>
+            <input id="hwQty" type="number" min="1" step="1" value="1"/>
+          </div>
+          <button class="btn" type="button" id="hwAdd" disabled>Добавить в КП</button>
+        </div>
+        <ul class="chosen" id="hwChosen"></ul>
+      </div>
     </div>
   </section>
 
   <aside class="panel preview" id="preview">
-    <div class="badge">Демо · не оферта</div>
+    <div class="badge" id="kpBadge">Черновик</div>
     <p class="title" id="kpTitle">КП · Душевые</p>
     <p class="sub" id="kpSub">Черновик расчёта</p>
-    <table>
-      <thead>
-        <tr><th>Позиция</th><th class="num">Сумма, ₽</th></tr>
-      </thead>
-      <tbody id="kpRows"></tbody>
-    </table>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Артикул</th>
+            <th>Позиция</th>
+            <th class="num">Кол-во</th>
+            <th class="num">Цена</th>
+            <th class="num">Сумма</th>
+          </tr>
+        </thead>
+        <tbody id="kpRows"></tbody>
+      </table>
+    </div>
     <div class="total">
-      <span>Итого примерно</span>
+      <span id="kpTotalLabel">Итого</span>
       <span class="sum" id="kpTotal">0 ₽</span>
     </div>
-    <div class="disclaimer">Цены примерные, для демонстрации конфигуратора. Не являются коммерческим предложением и публичной офертой. Финальный расчёт — после прайса и замера.</div>
+    <div class="disclaimer" id="kpNote">Стекло — оценка по площади. Финальный расчёт после замера.</div>
     <div class="actions no-print">
       <button class="btn" type="button" onclick="window.print()">Печать / сохранить PDF</button>
       <a class="btn ghost" href="index.html">На витрину</a>
     </div>
   </aside>
 </main>
-<p class="foot">Душевые · проект Станок · конфигуратор без авторизации и без БД</p>
+<p class="foot">Душевые · проект Станок · черновик КП: фурнитура из каталога, стекло по оценке площади</p>
 <script>
 (function(){
-  // DEMO constants — not a real price list
-  const DEMO = {
-    glassPerSqm: {8: 4200, 10: 5100},
-    glassKindMult: {clear: 1, matte: 1.18},
-    hardware: {base: 9800, strong: 15400},
-    typeFactor: {corner: 1.12, straight: 1.0, niche: 1.08, sliding: 1.15, accordion: 1.22},
-    typeLabel: {
-      corner: 'Угловая',
-      straight: 'Прямая',
-      niche: 'Ниша',
-      sliding: 'Раздвижная',
-      accordion: 'Гармошка'
-    },
-    kindLabel: {clear: 'прозрачное', matte: 'матовое'},
-    hwLabel: {base: 'Базовый набор фурнитуры', strong: 'Усиленный набор фурнитуры'}
+  // GLASS_RATES — ставки стекла (оценка площади × коэффициент). Это не DEMO hardware.
+  // Фурнитура и её цены приходят только из GET /api/catalog (price). Наборы base/strong удалены.
+  const GLASS_RATES = {
+    perSqm: {8: 4200, 10: 5100},
+    kindMult: {clear: 1, matte: 1.18},
+    typeFactor: {corner: 1.12, straight: 1.0, niche: 1.08, sliding: 1.15, accordion: 1.22}
+  };
+  const TYPE_LABEL = {
+    corner: 'Угловая',
+    straight: 'Прямая',
+    niche: 'Ниша',
+    sliding: 'Раздвижная',
+    accordion: 'Гармошка'
+  };
+  const KIND_LABEL = {clear: 'прозрачное', matte: 'матовое'};
+  const SOURCE_LABEL = {
+    titan: 'ТИТАН',
+    arabella: 'Арабелла',
+    syndicate: 'Синдикат',
+    pauli: 'PAULI',
+    servicepls: 'ServicePLS',
+    oporto: 'Oporto'
+  };
+  const SOURCE_ORDER = ['titan', 'arabella', 'syndicate', 'pauli', 'servicepls', 'oporto'];
+  const ROLE_PAGE = {
+    admin: 'admin.html',
+    owner: 'owner.html',
+    accountant: 'accountant.html',
+    manager: 'manager.html',
+    measurer: 'measurer.html',
+    installer: 'installer.html',
+    supply: 'supply.html',
+    production: 'production.html'
+  };
+
+  const state = {
+    picks: [],
+    showPrice: false,
+    catalogOk: false,
+    results: new Map()
   };
 
   const $ = (s, el=document) => el.querySelector(s);
-  const $$ = (s, el=document) => [...el.querySelectorAll(s)];
+  let searchSeq = 0;
+  let searchAbort = null;
+  let searchTimer = null;
 
   function val(name){
     const el = document.querySelector(`input[name="${name}"]:checked`);
     return el ? el.value : null;
   }
   function num(id){ return Math.max(0, Number($(id).value) || 0); }
-
+  function esc(s){
+    return String(s == null ? '' : s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;');
+  }
+  function mfrLabel(id){ return SOURCE_LABEL[id] || id || ''; }
+  function clip(s, n){
+    s = String(s || '');
+    return s.length > n ? s.slice(0, n - 1) + '…' : s;
+  }
+  function roundMoney(n){
+    return Math.round(Number(n) * 100) / 100;
+  }
+  function money(n){
+    if (n == null || !Number.isFinite(Number(n))) return '—';
+    const v = roundMoney(n);
+    const digits = Math.abs(v - Math.round(v)) < 0.001 ? 0 : 2;
+    return new Intl.NumberFormat('ru-RU', {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: 2
+    }).format(v) + ' ₽';
+  }
+  function qtyText(n){
+    const x = Number(n);
+    if (!Number.isFinite(x)) return '—';
+    return new Intl.NumberFormat('ru-RU', {maximumFractionDigits: 2}).format(x);
+  }
   function areaSqm(type, w, h, d){
-    // rough glass area estimate for demo
     const Wm = w/1000, Hm = h/1000, Dm = d/1000;
     if(type === 'corner') return (Wm + Dm) * Hm;
-    if(type === 'niche') return (Wm + 2*Dm) * Hm * 0.55; // simplified niche faces
+    if(type === 'niche') return (Wm + 2*Dm) * Hm * 0.55;
     if(type === 'accordion') return Wm * Hm * 1.15;
-    return Wm * Hm; // straight / sliding
+    return Wm * Hm;
   }
-
-  function money(n){
-    return new Intl.NumberFormat('ru-RU', {maximumFractionDigits:0}).format(Math.round(n)) + ' ₽';
+  function priceNumber(raw){
+    if (raw == null || raw === '') return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  }
+  function lineSum(pick){
+    if (!state.showPrice) return null;
+    const price = priceNumber(pick.price);
+    const qty = Number(pick.qty);
+    if (price == null || !Number.isFinite(qty) || qty <= 0) return null;
+    return roundMoney(price * qty);
+  }
+  function errorMessage(data, status){
+    const d = data && data.detail;
+    if (typeof d === 'string' && d) return d;
+    return 'Ошибка ' + status;
+  }
+  async function apiGet(path, signal){
+    const res = await fetch(path, {credentials: 'same-origin', signal});
+    let data = null;
+    try { data = await res.json(); } catch (e) { data = null; }
+    if (!res.ok) {
+      const err = new Error(errorMessage(data, res.status));
+      err.status = res.status;
+      throw err;
+    }
+    return data;
   }
 
   function syncDepth(){
@@ -214,36 +351,336 @@ td.num,th.num{text-align:right;white-space:nowrap}
     const w = num('#width'), h = num('#height'), d = num('#depth');
     const thick = val('glassThick');
     const kind = val('glassKind');
-    const hw = val('hw');
-
     const area = areaSqm(type, w, h, d);
-    const glassUnit = DEMO.glassPerSqm[thick] * DEMO.glassKindMult[kind];
-    const glassSum = area * glassUnit * DEMO.typeFactor[type];
-    const hwSum = DEMO.hardware[hw];
-    const installDemo = Math.round((glassSum + hwSum) * 0.08);
-    const total = glassSum + hwSum + installDemo;
+    const thickKey = Number(thick);
+    const glassUnit = (GLASS_RATES.perSqm[thickKey] || 0)
+      * (GLASS_RATES.kindMult[kind] || 1)
+      * (GLASS_RATES.typeFactor[type] || 1);
+    const glassSum = roundMoney(area * glassUnit);
 
     const sizeTxt = (type === 'corner' || type === 'niche')
       ? `${w}×${h}×${d} мм`
       : `${w}×${h} мм`;
 
-    $('#kpTitle').textContent = `КП · ${DEMO.typeLabel[type]}`;
-    $('#kpSub').textContent = `Проём ${sizeTxt} · стекло ${thick} мм, ${DEMO.kindLabel[kind]} · площадь ≈ ${area.toFixed(2)} м²`;
+    $('#kpTitle').textContent = `КП · ${TYPE_LABEL[type] || type}`;
+    $('#kpSub').textContent = `Проём ${sizeTxt} · стекло ${thick} мм, ${KIND_LABEL[kind] || kind} · площадь ≈ ${area.toFixed(2)} м²`;
 
-    const rows = [
-      [`Стекло ${thick} мм, ${DEMO.kindLabel[kind]} (≈ ${area.toFixed(2)} м²)`, glassSum],
-      [DEMO.hwLabel[hw], hwSum],
-      ['Сборка / логистика (демо 8%)', installDemo]
-    ];
-    $('#kpRows').innerHTML = rows.map(([name, sum]) =>
-      `<tr><td>${name}</td><td class="num">${money(sum)}</td></tr>`
+    const rows = [{
+      sku: '—',
+      name: `Стекло ${thick} мм, ${KIND_LABEL[kind] || kind} · оценка`,
+      qty: qtyText(area) + ' м²',
+      price: money(glassUnit) + '/м²',
+      sum: money(glassSum),
+      amount: glassSum
+    }];
+
+    let missing = 0;
+    state.picks.forEach((p) => {
+      const amount = lineSum(p);
+      if (amount == null) missing += 1;
+      let priceCell = '—';
+      if (!state.showPrice) priceCell = 'скрыта';
+      else if (priceNumber(p.price) == null) priceCell = 'нет в каталоге';
+      else priceCell = money(p.price);
+      const title = (p.groupTitle ? p.groupTitle + ' · ' : '') + (p.name || 'Позиция');
+      rows.push({
+        sku: p.sku || '—',
+        name: title,
+        qty: qtyText(p.qty),
+        price: priceCell,
+        sum: amount == null ? '—' : money(amount),
+        amount: amount
+      });
+    });
+
+    const total = rows.reduce((s, r) => s + (r.amount == null ? 0 : r.amount), 0);
+    const pricedHw = state.picks.filter((p) => lineSum(p) != null).length;
+    $('#kpBadge').textContent = pricedHw ? 'Каталог' : 'Черновик';
+    $('#kpRows').innerHTML = rows.map((r) =>
+      `<tr><td class="sku">${esc(r.sku)}</td><td>${esc(r.name)}</td><td class="num">${esc(r.qty)}</td><td class="num">${esc(r.price)}</td><td class="num">${esc(r.sum)}</td></tr>`
     ).join('');
     $('#kpTotal').textContent = money(total);
+
+    const notes = [
+      'Стекло посчитано по оценочной ставке (площадь × коэффициент). Финальный расчёт — после замера.'
+    ];
+    if (!state.catalogOk) {
+      notes.push('Фурнитура появится в спецификации после входа: каталог отдаёт позиции и цену закупа по сессии.');
+    } else if (!state.showPrice) {
+      notes.push('Для этой роли каталог не отдаёт цену закупа. Выбранные позиции есть в спецификации, в итог они не входят.');
+    } else if (pricedHw) {
+      notes.push('Цены фурнитуры — закуп из каталога. Сборка и доставка в итог не входят. Клиентскую цену считайте отдельно.');
+    } else {
+      notes.push('Добавьте фурнитуру из каталога — в спецификации будут артикул, количество и цена закупа.');
+    }
+    if (state.showPrice && missing && state.picks.length) {
+      notes.push('Позиции без цены в каталоге стоят в спецификации и в итог не входят.');
+    }
+    $('#kpNote').textContent = notes.join(' ');
   }
 
-  $$('input, select').forEach(el => el.addEventListener('input', render));
-  $$('input[type=radio]').forEach(el => el.addEventListener('change', render));
-  render();
+  function renderChosen(){
+    const host = $('#hwChosen');
+    if (!state.picks.length) {
+      host.innerHTML = '';
+      return;
+    }
+    host.innerHTML = state.picks.map((p) => {
+      const amount = lineSum(p);
+      let priceBit = 'цена скрыта';
+      if (state.showPrice) priceBit = priceNumber(p.price) == null ? 'нет цены' : money(p.price);
+      const sumBit = amount == null ? '—' : (qtyText(p.qty) + ' × ' + priceBit + ' = ' + money(amount));
+      const priceLine = amount == null ? priceBit : sumBit;
+      return `<li>
+        <div>
+          <div class="sku">${esc(p.sku || '—')} · ${esc(mfrLabel(p.source))}</div>
+          <div class="nm">${esc(p.name || '')}</div>
+        </div>
+        <input type="number" min="1" step="1" value="${esc(p.qty)}" data-qty="${esc(p.id)}" aria-label="Количество"/>
+        <div data-sum-for="${esc(p.id)}">${esc(priceLine)}</div>
+        <button class="mini" type="button" data-remove="${esc(p.id)}">Убрать</button>
+      </li>`;
+    }).join('');
+  }
+
+  function describe(it){
+    if (!it) return '';
+    const bits = [];
+    if (it.source) bits.push(mfrLabel(it.source));
+    if (state.showPrice) bits.push(priceNumber(it.price) == null ? 'нет цены в каталоге' : money(it.price));
+    else bits.push('цена закупа скрыта');
+    if (it.in_stock === true) bits.push('в наличии');
+    if (it.in_stock === false) bits.push('под заказ');
+    if (it.glass_mm) bits.push('стекло ' + it.glass_mm + ' мм');
+    return bits.join(' · ');
+  }
+
+  function fillPick(items, total){
+    const select = $('#hwPick');
+    state.results = new Map();
+    select.innerHTML = '';
+    (items || []).forEach((it) => {
+      state.results.set(it.id, it);
+      const opt = document.createElement('option');
+      opt.value = String(it.id);
+      const sku = it.sku || '—';
+      opt.textContent = clip(sku + ' — ' + (it.name || ''), 110);
+      opt.title = (it.name || '') + (it.sku ? ' · ' + it.sku : '');
+      select.appendChild(opt);
+    });
+    const add = $('#hwAdd');
+    if (!select.options.length) {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = 'Ничего не найдено';
+      select.appendChild(opt);
+      add.disabled = true;
+      const q = $('#hwQ').value.trim();
+      $('#hwPickMeta').textContent = (q || state.source) ? 'Ничего не найдено' : 'В этой группе пусто';
+      return;
+    }
+    add.disabled = false;
+    const shown = select.options.length;
+    const bits = [describe(state.results.get(Number(select.value)))];
+    if (total > shown) bits.push('Показано ' + shown + ' из ' + total + '. Уточните поиск.');
+    $('#hwPickMeta').textContent = bits.filter(Boolean).join(' · ');
+  }
+
+  function scheduleSearch(){
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => { search(); }, 250);
+  }
+
+  async function search(){
+    if (!state.catalogOk) return;
+    const seq = ++searchSeq;
+    if (searchAbort) searchAbort.abort();
+    searchAbort = new AbortController();
+    const params = new URLSearchParams();
+    if (state.group) params.set('group', state.group);
+    if (state.source) params.set('source', state.source);
+    const q = $('#hwQ').value.trim();
+    if (q) params.set('q', q);
+    params.set('limit', '40');
+    $('#hwAdd').disabled = true;
+    $('#hwPickMeta').textContent = 'Загрузка…';
+    let data;
+    try {
+      data = await apiGet('/api/catalog?' + params.toString(), searchAbort.signal);
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+      if (seq !== searchSeq) return;
+      $('#hwPickMeta').textContent = e.message || 'Не удалось загрузить позиции';
+      return;
+    }
+    if (seq !== searchSeq) return;
+    state.showPrice = !!data.show_price;
+    fillPick(data.items || [], data.total || 0);
+  }
+
+  function renderGroups(groups){
+    const host = $('#hwGroups');
+    host.innerHTML = '';
+    const list = groups || [];
+    const first = list.find((g) => g.count) || list[0];
+    state.group = first ? first.id : '';
+    list.forEach((g) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = g.title_ru || g.id;
+      btn.dataset.group = g.id;
+      if (!g.count) btn.disabled = true;
+      if (g.id === state.group) btn.classList.add('active');
+      btn.addEventListener('click', () => {
+        if (btn.disabled) return;
+        state.group = g.id;
+        host.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b === btn));
+        search();
+      });
+      host.appendChild(btn);
+    });
+  }
+
+  function renderSources(sources){
+    const select = $('#hwSource');
+    const current = state.source || '';
+    const rank = Object.fromEntries(SOURCE_ORDER.map((id, i) => [id, i]));
+    const list = (sources || []).slice().sort((a, b) => {
+      const ra = rank[a.id] != null ? rank[a.id] : 99;
+      const rb = rank[b.id] != null ? rank[b.id] : 99;
+      if (ra !== rb) return ra - rb;
+      return String(a.id).localeCompare(String(b.id));
+    });
+    select.innerHTML = '';
+    const all = document.createElement('option');
+    all.value = '';
+    all.textContent = 'Все';
+    select.appendChild(all);
+    list.forEach((s) => {
+      if (!s.count) return;
+      const opt = document.createElement('option');
+      opt.value = s.id;
+      opt.textContent = mfrLabel(s.id) + ' · ' + s.count;
+      select.appendChild(opt);
+    });
+    select.value = current;
+    if (select.value !== current) select.value = '';
+  }
+
+  function setCatalogStatus(text){
+    $('#hwStatus').textContent = text;
+  }
+
+  function addSelected(){
+    const id = Number($('#hwPick').value);
+    const it = state.results.get(id);
+    if (!it) return;
+    const qty = Math.max(1, Math.round(Number($('#hwQty').value) || 1));
+    const existing = state.picks.find((p) => p.id === it.id);
+    if (existing) existing.qty += qty;
+    else {
+      state.picks.push({
+        id: it.id,
+        sku: it.sku || '',
+        name: it.name || '',
+        price: priceNumber(it.price),
+        groupTitle: it.group_title || '',
+        source: it.source || '',
+        qty: qty
+      });
+    }
+    renderChosen();
+    render();
+  }
+
+  function bindPicker(){
+    $('#hwSource').addEventListener('change', () => {
+      state.source = $('#hwSource').value;
+      search();
+    });
+    $('#hwQ').addEventListener('input', scheduleSearch);
+    $('#hwQ').addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        clearTimeout(searchTimer);
+        search();
+      }
+    });
+    $('#hwPick').addEventListener('change', () => {
+      const it = state.results.get(Number($('#hwPick').value));
+      $('#hwPickMeta').textContent = describe(it);
+    });
+    $('#hwAdd').addEventListener('click', addSelected);
+    $('#hwChosen').addEventListener('click', (ev) => {
+      const btn = ev.target.closest('[data-remove]');
+      if (!btn) return;
+      const id = Number(btn.getAttribute('data-remove'));
+      state.picks = state.picks.filter((p) => p.id !== id);
+      renderChosen();
+      render();
+    });
+    $('#hwChosen').addEventListener('input', (ev) => {
+      const input = ev.target.closest('[data-qty]');
+      if (!input) return;
+      const id = Number(input.getAttribute('data-qty'));
+      const pick = state.picks.find((p) => p.id === id);
+      if (!pick) return;
+      const n = Math.round(Number(input.value));
+      pick.qty = Number.isFinite(n) && n >= 1 ? n : 0;
+      const slot = document.querySelector(`[data-sum-for="${id}"]`);
+      if (slot) {
+        const amount = lineSum(pick);
+        let priceBit = 'цена скрыта';
+        if (state.showPrice) priceBit = priceNumber(pick.price) == null ? 'нет цены' : money(pick.price);
+        slot.textContent = amount == null ? priceBit : (qtyText(pick.qty) + ' × ' + priceBit + ' = ' + money(amount));
+      }
+      render();
+    });
+  }
+
+  async function boot(){
+    bindPicker();
+    render();
+    let me = null;
+    try { me = await apiGet('/api/auth/me'); } catch (e) { me = null; }
+    if (me && me.user) {
+      const link = $('#loginLink');
+      link.textContent = 'Кабинет';
+      link.href = 'lk/' + (ROLE_PAGE[me.user.role] || 'index.html');
+    }
+    try {
+      const data = await apiGet('/api/catalog?limit=1');
+      state.catalogOk = true;
+      state.showPrice = !!data.show_price;
+      renderGroups(data.groups || []);
+      renderSources(data.sources || []);
+      $('#hwPicker').hidden = false;
+      $('#hwAuth').hidden = true;
+      const priceNote = state.showPrice
+        ? 'цены закупа в списке'
+        : 'цены закупа для этой роли скрыты';
+      setCatalogStatus(`Каталог · ${data.total} поз. · ${priceNote}`);
+      await search();
+    } catch (e) {
+      state.catalogOk = false;
+      $('#hwPicker').hidden = true;
+      if (e.status === 401) {
+        $('#hwAuth').hidden = false;
+        setCatalogStatus('Войдите, чтобы выбрать фурнитуру из каталога и подставить цену закупа.');
+      } else if (e.status === 503) {
+        $('#hwAuth').hidden = true;
+        setCatalogStatus(e.message || 'Каталог ещё не загружен');
+      } else {
+        $('#hwAuth').hidden = true;
+        setCatalogStatus(e.message || 'Не удалось загрузить каталог');
+      }
+    }
+    render();
+  }
+
+  ['#width','#height','#depth'].forEach((id) => $(id).addEventListener('input', render));
+  document.querySelectorAll('input[type=radio]').forEach((el) => el.addEventListener('change', render));
+  boot();
 })();
 </script>
 </body>
