@@ -84,6 +84,8 @@ dushevye/
 | `/api/users/:id/role` | PATCH | Смена роли |
 | `/api/audit` | GET | Журнал действий |
 | `/api/catalog` | GET | Каталог комплектующих (фильтры, пагинация) |
+| `/api/stock` | GET | Остатки склада (группа, производитель, поиск) |
+| `/api/stock/in` `/out` `/reserve` `/release` | POST | Приход, расход, резерв, снятие резерва |
 
 Стек: Python, FastAPI, SQLite (`DUSHEVYE_DB`, отдельно `DUSHEVYE_CATALOG_DB`). Nginx только раздаёт статику и проксирует API.
 

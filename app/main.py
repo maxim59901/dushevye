@@ -30,6 +30,7 @@ from .projects import (
     set_project_status,
 )
 from .quotes import QuoteIn, compose_quote, fetch_parts, normalize_quote, present_quote, render_quote_pdf
+from .stock import AUDIT_ACTION, StockMoveIn, apply_movement, list_stock
 from .security import (
     CSRF_HEADER,
     CSRF_SESSION_KEY,
@@ -798,6 +799,67 @@ def projects_quote(
     with get_db() as conn:
         project = bind_quote(conn, user, project_id, body.quote_id)
     return {"project": project}
+
+
+def _stock_move(kind: str, body: StockMoveIn, request: Request, user):
+    require_csrf(request)
+    try:
+        with get_db() as conn:
+            item, movement_id, detail = apply_movement(conn, user, kind, body)
+            audit(
+                conn,
+                user["org_id"],
+                user["id"],
+                AUDIT_ACTION[kind],
+                target_type="stock",
+                target_id=item["part_id"],
+                detail=detail,
+            )
+    except sqlite3.IntegrityError:
+        raise HTTPException(status_code=400, detail="Операция не сходится с остатком")
+    return {"item": item, "movement_id": movement_id}
+
+
+@app.get("/api/stock")
+def stock_list(
+    group: Optional[str] = None,
+    source: Optional[str] = None,
+    manufacturer: Optional[str] = None,
+    q: Optional[str] = None,
+    limit: int = 200,
+    user=Depends(current_user),
+):
+    """Org balances over catalog parts. Sorted by deficit, then reserve, qty, min."""
+    limit = max(1, min(limit, 500))
+    with get_db() as conn:
+        return list_stock(
+            conn,
+            user,
+            group=group,
+            source=source or manufacturer,
+            q=q,
+            limit=limit,
+        )
+
+
+@app.post("/api/stock/in")
+def stock_in(body: StockMoveIn, request: Request, user=Depends(current_user)):
+    return _stock_move("in", body, request, user)
+
+
+@app.post("/api/stock/out")
+def stock_out(body: StockMoveIn, request: Request, user=Depends(current_user)):
+    return _stock_move("out", body, request, user)
+
+
+@app.post("/api/stock/reserve")
+def stock_reserve(body: StockMoveIn, request: Request, user=Depends(current_user)):
+    return _stock_move("reserve", body, request, user)
+
+
+@app.post("/api/stock/release")
+def stock_release(body: StockMoveIn, request: Request, user=Depends(current_user)):
+    return _stock_move("release", body, request, user)
 
 
 def _maybe_serve_public() -> None:

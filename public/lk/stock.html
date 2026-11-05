@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Склад — ЛК Душевые</title>
+<link rel="stylesheet" href="lk.css"/>
+<style>
+.filters{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:14px}
+.filters .field{margin:0;min-width:160px;flex:1}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
+.table-wrap{overflow-x:auto}
+.table-wrap .btn{white-space:nowrap}
+.ops{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
+tr.low td{background:#FEF3C7}
+.pick{border:1px solid var(--line);border-radius:12px;margin-top:8px;overflow:hidden}
+.pick button{display:block;width:100%;text-align:left;background:#fff;border:0;border-bottom:1px solid var(--line);padding:8px 10px;cursor:pointer}
+.pick button:last-child{border-bottom:0}
+.pick button:hover{background:var(--soft)}
+.pick .s{display:block;color:var(--muted);font-size:12px;font-weight:500}
+.errnote{background:#FEE2E2;color:var(--bad);border-radius:12px;padding:10px 12px;font-size:13px;margin-top:10px}
+.sub{display:block;color:var(--muted);font-size:12px;font-weight:500;margin-top:2px}
+@media (max-width:800px){
+  .form-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">ДУШЕВЫЕ · ЛК</div>
+    <div class="role-pill">Склад</div>
+    <nav>
+      <a href="stock.html" class="active">Остатки</a>
+      <a href="#" id="backCabinet">← В кабинет</a>
+      <a href="projects.html">Проекты</a>
+      <a href="catalog.html">Каталог фурнитуры</a>
+      <a href="index.html">Все роли</a>
+      <a href="../index.html">На витрину</a>
+    </nav>
+    <div class="foot">Остатки организации поверх каталога. Каталог поставщиков эта страница не меняет.</div>
+  </aside>
+  <div class="main">
+    <div class="top">
+      <h1>Склад</h1>
+      <div class="meta">
+        <span class="badge demo">Вход</span>
+        <span class="badge muted" id="countBadge">—</span>
+        <span class="badge warn" id="lowBadge" hidden>ниже минимума</span>
+      </div>
+    </div>
+    <div class="content">
+      <p class="lead" id="scopeHint" style="color:var(--muted);margin:0 0 16px;font-size:14px">Загрузка…</p>
+      <div id="filterBar" class="filters">
+        <div class="field">
+          <label for="filterGroup">Группа</label>
+          <select id="filterGroup"><option value="">Все</option></select>
+        </div>
+        <div class="field">
+          <label for="filterSource">Производитель</label>
+          <select id="filterSource"><option value="">Все</option></select>
+        </div>
+        <div class="field">
+          <label for="filterQ">Поиск</label>
+          <input type="text" id="filterQ" placeholder="артикул или название" maxlength="200"/>
+        </div>
+        <button class="btn" type="button" id="filterBtn">Показать</button>
+        <button class="btn ghost" type="button" id="resetBtn">Сбросить</button>
+      </div>
+      <div class="card" id="listCard">
+        <h2 id="listTitle">Остатки</h2>
+        <p class="lead" id="listNote"></p>
+        <div class="table-wrap">
+          <table>
+            <thead id="listHead"></thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card" id="opCard" style="margin-top:14px" hidden>
+        <h2>Операция</h2>
+        <p class="lead" id="opHint">Приход берёт позицию из каталога и пишет остаток только в учёт организации.</p>
+        <form id="opForm">
+          <div class="form-grid">
+            <div class="field">
+              <label for="opKind">Что сделать</label>
+              <select id="opKind"></select>
+            </div>
+            <div class="field">
+              <label for="qty">Количество</label>
+              <input type="number" id="qty" min="0.001" max="1000000" step="0.001" required placeholder="1"/>
+            </div>
+            <div class="field" style="grid-column:1 / -1">
+              <label for="partQ">Позиция каталога</label>
+              <div class="row">
+                <input type="text" id="partQ" placeholder="артикул или название" maxlength="200" style="flex:1"/>
+                <button class="btn ghost" type="button" id="partBtn">Найти</button>
+              </div>
+              <div class="pick" id="partHits" hidden></div>
+              <div class="hint" id="partChosen">Позиция не выбрана. Можно найти в каталоге или нажать кнопку в строке остатка.</div>
+            </div>
+            <div class="field" id="minField" hidden>
+              <label for="minQty">Минимальный остаток</label>
+              <input type="number" id="minQty" min="0" max="1000000" step="0.001" placeholder="не менять"/>
+              <div class="hint">Пустое поле оставляет текущий минимум. Ниже минимума строка подсвечивается.</div>
+            </div>
+            <div class="field" id="projectField" hidden>
+              <label for="projectId">Проект</label>
+              <select id="projectId"></select>
+              <div class="hint" id="projectHint"></div>
+            </div>
+            <div class="field" style="grid-column:1 / -1">
+              <label for="note">Комментарий</label>
+              <input type="text" id="note" maxlength="300" placeholder="необязательно"/>
+            </div>
+          </div>
+          <div class="row">
+            <button class="btn" type="submit" id="opBtn">Провести</button>
+          </div>
+          <div id="formError" class="errnote" hidden></div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="auth.js"></script>
+<script>
+(function () {
+  const SOURCE_LABEL = {
+    titan: 'ТИТАН',
+    arabella: 'Арабелла',
+    syndicate: 'Синдикат',
+    pauli: 'PAULI',
+    servicepls: 'ServicePLS',
+    oporto: 'Oporto',
+  };
+  const HINT = {
+    full: 'Полный склад организации: приход, расход, резерв и снятие резерва. Список отсортирован так: дефицит, затем резерв, остаток, минимум.',
+    view: 'Остатки только для просмотра. Список: дефицит, затем резерв, остаток, минимум.',
+    manager: 'Можно смотреть остатки и резервировать свободное количество под свой проект. Приход и расход здесь недоступны.',
+    own_reserves: 'Резервы по проектам, где вы ответственный. Общие остатки склада этой роли не открыты.',
+  };
+  const OP = {
+    in: 'Приход увеличивает остаток. В каталог поставщика запись не попадает.',
+    out: 'Расход списывает свободный остаток и не снимает резерв.',
+    reserve: 'Резерв занимает свободный остаток. Менеджер указывает свой проект.',
+    release: 'Снятие резерва возвращает количество этого проекта в свободный остаток.',
+  };
+  const OP_LABEL = { in: 'Приход', out: 'Расход', reserve: 'Резерв', release: 'Снять резерв' };
+
+  const state = {
+    user: null,
+    caps: null,
+    part: null,
+    projects: [],
+  };
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function fmt(v) {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return '—';
+    return n.toLocaleString('ru-RU', { maximumFractionDigits: 3 });
+  }
+  function sourceLabel(id) {
+    return SOURCE_LABEL[id] || id || '—';
+  }
+  function showError(msg) {
+    const el = document.getElementById('formError');
+    if (!msg) { el.hidden = true; el.textContent = ''; return; }
+    el.hidden = false;
+    el.textContent = msg;
+  }
+  function query() {
+    const p = new URLSearchParams();
+    const group = document.getElementById('filterGroup').value;
+    const source = document.getElementById('filterSource').value;
+    const q = document.getElementById('filterQ').value.trim();
+    if (group) p.set('group', group);
+    if (source) p.set('source', source);
+    if (q) p.set('q', q);
+    const s = p.toString();
+    return s ? ('?' + s) : '';
+  }
+  function fillSelect(id, current, options, allLabel) {
+    const el = document.getElementById(id);
+    const bits = ['<option value="">' + esc(allLabel) + '</option>'];
+    options.forEach((opt) => {
+      const on = opt.value === current ? ' selected' : '';
+      bits.push('<option value="' + esc(opt.value) + '"' + on + '>' + esc(opt.label) + '</option>');
+    });
+    el.innerHTML = bits.join('');
+  }
+  function renderOps() {
+    const caps = state.caps || {};
+    const kinds = [];
+    if (caps.can_in) kinds.push('in');
+    if (caps.can_out) kinds.push('out');
+    if (caps.can_reserve) kinds.push('reserve', 'release');
+    const sel = document.getElementById('opKind');
+    const current = sel.value;
+    sel.innerHTML = kinds.map((kind) => '<option value="' + kind + '">' + esc(OP_LABEL[kind]) + '</option>').join('');
+    if (kinds.indexOf(current) >= 0) sel.value = current;
+    document.getElementById('opCard').hidden = kinds.length === 0;
+    syncOpFields();
+  }
+  function syncOpFields() {
+    const kind = document.getElementById('opKind').value;
+    const caps = state.caps || {};
+    const manager = state.user && state.user.role === 'manager';
+    document.getElementById('minField').hidden = !(kind === 'in' && caps.can_set_min);
+    const projectField = document.getElementById('projectField');
+    const needsProject = kind === 'reserve' || kind === 'release' || kind === 'in' || kind === 'out';
+    projectField.hidden = !needsProject || !(state.projects.length || manager);
+    const hint = document.getElementById('projectHint');
+    if (manager && (kind === 'reserve' || kind === 'release')) {
+      hint.textContent = state.projects.length
+        ? 'Для менеджера проект обязателен: только свой.'
+        : 'Сначала создайте проект — резерв без него не проводится.';
+    } else if (kind === 'reserve' || kind === 'release') {
+      hint.textContent = 'Пустой проект — резерв без привязки. Снять можно только из той же привязки.';
+    } else {
+      hint.textContent = 'Проект в приходе и расходе только пометка. Расход резерв не снимает.';
+    }
+    document.getElementById('opHint').textContent = OP[kind] || '';
+    const labels = { in: 'Оприходовать', out: 'Списать', reserve: 'Зарезервировать', release: 'Снять резерв' };
+    document.getElementById('opBtn').textContent = labels[kind] || 'Провести';
+  }
+  function renderProjects() {
+    const sel = document.getElementById('projectId');
+    const manager = state.user && state.user.role === 'manager';
+    const bits = [];
+    if (!manager) bits.push('<option value="">Без проекта</option>');
+    state.projects.forEach((p) => {
+      bits.push('<option value="' + Number(p.id) + '">' + esc(p.customer_name || ('Проект ' + p.id)) + '</option>');
+    });
+    sel.innerHTML = bits.join('') || '<option value="">Нет проектов</option>';
+  }
+  function choosePart(part) {
+    state.part = part;
+    const label = [part.sku, part.name, sourceLabel(part.source)].filter(Boolean).join(' · ');
+    document.getElementById('partChosen').textContent = 'Выбрано: ' + label;
+    document.getElementById('partHits').hidden = true;
+  }
+  function reserveNote(item) {
+    const lines = item.reservations || [];
+    if (!lines.length) return '';
+    const text = lines.map((line) => {
+      const who = line.project_id ? (line.customer_name || ('проект ' + line.project_id)) : 'без проекта';
+      return who + ' · ' + fmt(line.qty);
+    }).join(', ');
+    return '<span class="sub">' + esc(text) + '</span>';
+  }
+  function actionButtons(item) {
+    const caps = state.caps || {};
+    const bits = [];
+    if (caps.can_in) bits.push('<button class="btn ghost" type="button" data-op="in">Приход</button>');
+    if (caps.can_out) bits.push('<button class="btn ghost" type="button" data-op="out">Расход</button>');
+    if (caps.can_reserve) {
+      bits.push('<button class="btn ghost" type="button" data-op="reserve">Резерв</button>');
+      bits.push('<button class="btn ghost" type="button" data-op="release">Снять</button>');
+    }
+    return bits.join(' ');
+  }
+  function renderBalances(data) {
+    document.getElementById('listTitle').textContent = 'Остатки';
+    document.getElementById('listHead').innerHTML =
+      '<tr><th>Позиция</th><th>Производитель</th><th>Группа</th>' +
+      '<th class="num">Остаток</th><th class="num">Резерв</th><th class="num">Свободно</th>' +
+      '<th class="num">Мин.</th><th class="num">Дефицит</th><th></th></tr>';
+    const items = data.items || [];
+    if (!items.length) {
+      const empty = (state.caps && state.caps.can_in)
+        ? 'Пока нет остатков. Найдите позицию каталога и оприходуйте её.'
+        : 'Пока нет остатков.';
+      document.getElementById('rows').innerHTML = '<tr><td colspan="9">' + empty + '</td></tr>';
+      return;
+    }
+    document.getElementById('rows').innerHTML = items.map((item) => {
+      const low = item.below_min ? ' class="low"' : '';
+      const deficit = item.deficit > 0
+        ? '<span class="tag bad">' + esc(fmt(item.deficit)) + '</span>'
+        : '—';
+      return '<tr' + low + ' data-part="' + item.part_id + '" data-sku="' + esc(item.sku || '') +
+        '" data-name="' + esc(item.name || '') + '" data-source="' + esc(item.source || '') + '">' +
+        '<td>' + esc(item.name) + '<span class="sub">' + esc(item.sku || '') + '</span></td>' +
+        '<td>' + esc(sourceLabel(item.source)) + '</td>' +
+        '<td>' + esc(item.group_title || '—') + '</td>' +
+        '<td class="num">' + esc(fmt(item.qty_on_hand)) + '</td>' +
+        '<td class="num">' + esc(fmt(item.qty_reserved)) + reserveNote(item) + '</td>' +
+        '<td class="num">' + esc(fmt(item.qty_free)) + '</td>' +
+        '<td class="num">' + esc(fmt(item.min_qty)) + '</td>' +
+        '<td class="num">' + deficit + '</td>' +
+        '<td><div class="ops">' + actionButtons(item) + '</div></td></tr>';
+    }).join('');
+  }
+  function renderReserves(data) {
+    document.getElementById('listTitle').textContent = 'Мои резервы';
+    document.getElementById('listHead').innerHTML =
+      '<tr><th>Позиция</th><th>Проект</th><th class="num">Резерв</th></tr>';
+    const items = data.reserves || [];
+    if (!items.length) {
+      document.getElementById('rows').innerHTML = '<tr><td colspan="3">Резервов по вашим проектам нет.</td></tr>';
+      return;
+    }
+    document.getElementById('rows').innerHTML = items.map((item) => {
+      return '<tr><td>' + esc(item.name) + '<span class="sub">' + esc(item.sku || '') + '</span></td>' +
+        '<td>' + esc(item.customer_name || ('Проект ' + item.project_id)) + '</td>' +
+        '<td class="num">' + esc(fmt(item.qty_reserved)) + '</td></tr>';
+    }).join('');
+  }
+  async function load() {
+    const data = await Auth.api('/api/stock' + query());
+    state.caps = data;
+    state.projects = data.projects || [];
+    document.getElementById('scopeHint').textContent = HINT[data.scope] || '';
+    const own = data.scope === 'own_reserves';
+    document.getElementById('filterBar').hidden = own;
+    document.getElementById('countBadge').textContent = own
+      ? ((data.reserves || []).length + ' резерв.')
+      : (data.total + ' поз.');
+    const low = document.getElementById('lowBadge');
+    if (!own && data.below_min > 0) {
+      low.hidden = false;
+      low.textContent = 'ниже минимума: ' + data.below_min;
+    } else {
+      low.hidden = true;
+    }
+    if (!own) {
+      const group = document.getElementById('filterGroup').value;
+      const source = document.getElementById('filterSource').value;
+      fillSelect('filterGroup', group, (data.groups || []).map((g) => ({
+        value: g.id,
+        label: (g.title_ru || g.id) + ' (' + g.count + ')',
+      })), 'Все');
+      fillSelect('filterSource', source, (data.sources || []).map((s) => ({
+        value: s.id,
+        label: sourceLabel(s.id) + ' (' + s.count + ')',
+      })), 'Все');
+      let note = data.below_min
+        ? 'Жёлтые строки: свободный остаток ниже минимума. Сортировка фиксированная — сначала больший дефицит.'
+        : 'Сортировка фиксированная: дефицит, резерв, остаток, минимум.';
+      if (data.scope === 'manager') {
+        note += ' Колонка «Резерв» — весь резерв организации, подпись под числом — только ваши проекты.';
+      }
+      document.getElementById('listNote').textContent = note;
+      renderBalances(data);
+    } else {
+      document.getElementById('listNote').textContent = 'Чужие остатки и чужие проекты здесь не показываются.';
+      renderReserves(data);
+    }
+    renderProjects();
+    renderOps();
+  }
+  async function searchParts() {
+    const q = document.getElementById('partQ').value.trim();
+    const box = document.getElementById('partHits');
+    if (!q) { box.hidden = true; box.innerHTML = ''; return; }
+    const data = await Auth.api('/api/catalog?limit=8&q=' + encodeURIComponent(q));
+    const items = data.items || [];
+    if (!items.length) {
+      box.hidden = false;
+      box.innerHTML = '<div style="padding:8px 10px;color:var(--muted);font-size:13px">Ничего не найдено</div>';
+      return;
+    }
+    box.hidden = false;
+    box.innerHTML = items.map((item) => {
+      return '<button type="button" data-pick="' + item.id + '" data-sku="' + esc(item.sku || '') +
+        '" data-name="' + esc(item.name || '') + '" data-source="' + esc(item.source || '') + '">' +
+        esc(item.name || item.sku || ('#' + item.id)) +
+        '<span class="s">' + esc([item.sku, sourceLabel(item.source)].filter(Boolean).join(' · ')) + '</span></button>';
+    }).join('');
+  }
+
+  document.getElementById('filterBtn').onclick = () => load().catch((e) => Auth.showToast(e.message));
+  document.getElementById('resetBtn').onclick = () => {
+    document.getElementById('filterGroup').value = '';
+    document.getElementById('filterSource').value = '';
+    document.getElementById('filterQ').value = '';
+    load().catch((e) => Auth.showToast(e.message));
+  };
+  document.getElementById('filterQ').addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') {
+      ev.preventDefault();
+      load().catch((e) => Auth.showToast(e.message));
+    }
+  });
+  document.getElementById('opKind').onchange = syncOpFields;
+  document.getElementById('partBtn').onclick = () => searchParts().catch((e) => showError(e.message));
+  document.getElementById('partQ').addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') {
+      ev.preventDefault();
+      searchParts().catch((e) => showError(e.message));
+    }
+  });
+  document.getElementById('partHits').onclick = (ev) => {
+    const btn = ev.target.closest('[data-pick]');
+    if (!btn) return;
+    choosePart({
+      id: Number(btn.getAttribute('data-pick')),
+      sku: btn.getAttribute('data-sku') || '',
+      name: btn.getAttribute('data-name') || '',
+      source: btn.getAttribute('data-source') || '',
+    });
+  };
+  document.getElementById('rows').onclick = (ev) => {
+    const btn = ev.target.closest('[data-op]');
+    if (!btn) return;
+    const tr = btn.closest('tr');
+    choosePart({
+      id: Number(tr.getAttribute('data-part')),
+      sku: tr.getAttribute('data-sku') || '',
+      name: tr.getAttribute('data-name') || '',
+      source: tr.getAttribute('data-source') || '',
+    });
+    document.getElementById('opKind').value = btn.getAttribute('data-op');
+    syncOpFields();
+    document.getElementById('opCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    document.getElementById('qty').focus();
+  };
+  document.getElementById('opForm').onsubmit = async (ev) => {
+    ev.preventDefault();
+    showError('');
+    if (!state.part || !state.part.id) {
+      showError('Выберите позицию каталога');
+      return;
+    }
+    const kind = document.getElementById('opKind').value;
+    const qty = Number(document.getElementById('qty').value);
+    if (!Number.isFinite(qty) || qty <= 0) {
+      showError('Укажите количество больше нуля');
+      return;
+    }
+    const body = {
+      part_id: state.part.id,
+      qty: qty,
+      note: document.getElementById('note').value.trim(),
+    };
+    const projectRaw = document.getElementById('projectId').value;
+    const manager = state.user && state.user.role === 'manager';
+    if ((kind === 'reserve' || kind === 'release') && manager && !projectRaw) {
+      showError('Укажите свой проект');
+      return;
+    }
+    if (projectRaw) body.project_id = Number(projectRaw);
+    if (kind === 'in' && state.caps && state.caps.can_set_min) {
+      const minRaw = document.getElementById('minQty').value;
+      if (minRaw !== '') body.min_qty = Number(minRaw);
+    }
+    const btn = document.getElementById('opBtn');
+    btn.disabled = true;
+    try {
+      await Auth.api('/api/stock/' + kind, { method: 'POST', body: body });
+      Auth.showToast(OP_LABEL[kind] + ' проведён');
+      document.getElementById('qty').value = '';
+      document.getElementById('note').value = '';
+      await load();
+    } catch (e) {
+      showError(e.message || 'Не удалось провести операцию');
+    } finally {
+      btn.disabled = false;
+    }
+  };
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    const user = await Auth.requireCabinet();
+    if (!user) return;
+    state.user = user;
+    const back = document.getElementById('backCabinet');
+    back.href = Auth.cabinetUrl(user);
+    back.textContent = '← ' + (Auth.ROLE_LABEL[user.role] || 'Кабинет');
+    try {
+      await load();
+    } catch (e) {
+      document.getElementById('scopeHint').textContent = e.message || 'Не удалось открыть склад';
+    }
+  });
+})();
+</script>
+</body>
+</html>
