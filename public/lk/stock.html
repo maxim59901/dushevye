@@ -120,6 +120,11 @@ tr.low td{background:#FEF3C7}
           <div id="formError" class="errnote" hidden></div>
         </form>
       </div>
+      <div class="card" id="historyCard" style="margin-top:14px">
+        <h2 id="historyTitle">История</h2>
+        <p class="lead" id="historyHint">Остаток, резерв и минимум. Отката нет.</p>
+        <div id="historyBody"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -243,6 +248,17 @@ tr.low td{background:#FEF3C7}
     const label = [part.sku, part.name, sourceLabel(part.source)].filter(Boolean).join(' · ');
     document.getElementById('partChosen').textContent = 'Выбрано: ' + label;
     document.getElementById('partHits').hidden = true;
+    loadHistory(part.id);
+  }
+  async function loadHistory(partId) {
+    const title = document.getElementById('historyTitle');
+    if (title) title.textContent = partId ? 'История позиции' : 'История';
+    await Auth.mountVersions(document.getElementById('historyBody'), {
+      entity_type: 'stock',
+      entity_id: partId || undefined,
+      hintEl: document.getElementById('historyHint'),
+      limit: 20,
+    });
   }
   function reserveNote(item) {
     const lines = item.reservations || [];
@@ -353,6 +369,7 @@ tr.low td{background:#FEF3C7}
     }
     renderProjects();
     renderOps();
+    await loadHistory(state.part && state.part.id);
   }
   async function searchParts() {
     const q = document.getElementById('partQ').value.trim();

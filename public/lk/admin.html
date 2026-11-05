@@ -70,7 +70,8 @@
     <div class="row"><button class="btn" type="button">Создать приглашение</button><button class="btn ghost" type="button">Скопировать ссылку</button></div>
   </div>
 </div>
-<div class="grid two" style="margin-top:14px" id="audit">
+<div id="audit" style="margin-top:14px">
+<div class="grid two">
   <div class="card">
     <h2>Полный журнал</h2>
     <table>
@@ -89,6 +90,12 @@
       <div class="item"><div><div class="t">Политика ролей</div><div class="s">Смена роли — только админ/хозяин</div></div><span class="tag ok">Вкл</span></div>
       <div class="item"><div><div class="t">Полный лог</div><div class="s">Хозяин и админ видят всё</div></div><span class="tag ok">Вкл</span></div>
     </div>
+  </div>
+</div>
+  <div class="card" id="versions" style="margin-top:14px">
+    <h2>Версии сущностей</h2>
+    <p class="lead" id="versionsHint">Было и стало по проектам, КП, складу и ролям. Отката нет.</p>
+    <div id="versionRows"></div>
   </div>
 </div>
 
