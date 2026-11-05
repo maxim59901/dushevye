@@ -37,6 +37,9 @@ h1{font-size:28px;margin:0 0 6px;letter-spacing:-.02em}
 .seg label,.seg button{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:9px 12px;cursor:pointer;font-size:13px;font-weight:500;background:var(--white);font-family:inherit;color:inherit}
 .seg input{accent-color:var(--accent)}
 .seg label:has(input:checked),.seg button.active{border-color:var(--accent);background:#FDF6F2}
+.seg label.off{color:var(--muted)}
+.seg label.off:has(input:checked){color:var(--graphite)}
+.seg button.denied{opacity:.55;background:#F4F4F4;color:#6B7280}
 .seg button:disabled{opacity:.4;cursor:default}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
@@ -71,6 +74,8 @@ tr.just-saved{background:#FDF6F2}
 .chosen li{display:grid;grid-template-columns:minmax(0,1fr) 76px auto auto;gap:8px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 10px}
 .chosen .sku{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
 .chosen .nm{font-size:13px;font-weight:600}
+.chosen .why{display:block;margin-top:2px;font-size:12px;color:#9B1C1C;font-weight:500}
+.chosen li.denied{border-color:#E7B4B4;background:#FDF6F6}
 .chosen input[type=number]{padding:8px}
 .mini{background:#fff;border:1px solid var(--line);border-radius:8px;padding:7px 10px;cursor:pointer;font:inherit;font-size:12px;font-weight:600;color:var(--graphite)}
 .mini:hover{border-color:var(--accent);color:var(--accent)}
@@ -158,7 +163,7 @@ tr.just-saved{background:#FDF6F2}
           </div>
         </div>
       </div>
-      <span class="hint">Оценка: площадь × ставка за м² × коэффициент вида и типа. Толщина ограничена выбранным шаблоном.</span>
+      <span class="hint">Оценка: площадь × ставка за м² × коэффициент вида и типа. Для шаблонов допуск 8 и 10 мм. 6 мм оставлено в списке: серия «только 8/10» при нём серая, и проверку такое КП не проходит.</span>
     </div>
 
     <div class="panel" style="padding:16px;background:var(--soft);border:0">
@@ -171,6 +176,7 @@ tr.just-saved{background:#FDF6F2}
         <div class="field">
           <label>Группа</label>
           <div class="seg" id="hwGroups"></div>
+          <span class="hint" id="hwGroupHint" hidden></span>
         </div>
         <div class="grid2">
           <div class="field">
@@ -323,7 +329,10 @@ tr.just-saved{background:#FDF6F2}
     templates: [],
     templateId: '',
     ruleErrors: [],
-    ruleWarnings: []
+    ruleWarnings: [],
+    catalogGroups: [],
+    deniedParts: new Map(),
+    deniedGroups: new Map()
   };
   let csrfToken = null;
   let ruleTimer = null;
@@ -333,6 +342,7 @@ tr.just-saved{background:#FDF6F2}
   let searchSeq = 0;
   let searchAbort = null;
   let searchTimer = null;
+  let compatSeq = 0;
 
   function val(name){
     const el = document.querySelector(`input[name="${name}"]:checked`);
@@ -868,16 +878,23 @@ tr.just-saved{background:#FDF6F2}
     const host = $('#glassThickSeg');
     if (!tpl || !host) return;
     const current = val('glassThick');
-    const allowed = tpl.glass_thickness_mm || [8, 10];
+    const allowed = (tpl.glass_thickness_mm || [8, 10]).map((mm) => Number(mm));
+    const shown = allowed.slice();
+    if (shown.indexOf(6) === -1) shown.push(6);
     host.innerHTML = '';
-    allowed.forEach((mm, index) => {
+    shown.forEach((mm, index) => {
       const label = document.createElement('label');
+      const outside = allowed.indexOf(mm) === -1;
+      if (outside) {
+        label.className = 'off';
+        label.title = 'Вне допуска шаблона: фурнитура отфильтруется, сохранить КП нельзя';
+      }
       const input = document.createElement('input');
       input.type = 'radio';
       input.name = 'glassThick';
       input.value = String(mm);
       const keep = String(mm) === String(current);
-      const fallback = allowed.map(String).indexOf(String(current)) === -1 && index === 0;
+      const fallback = shown.map(String).indexOf(String(current)) === -1 && index === 0;
       input.checked = keep || fallback;
       label.appendChild(input);
       label.append(' ' + mm + ' мм');
@@ -892,6 +909,7 @@ tr.just-saved{background:#FDF6F2}
     renderGlass();
     updateSlotHint();
     render();
+    refreshCompat();
   }
   async function loadTemplates(){
     const data = await apiGet('/api/templates');
@@ -993,10 +1011,12 @@ tr.just-saved{background:#FDF6F2}
       if (state.showPrice) priceBit = priceNumber(p.price) == null ? 'нет цены' : money(p.price);
       const sumBit = amount == null ? '—' : (qtyText(p.qty) + ' × ' + priceBit + ' = ' + money(amount));
       const priceLine = amount == null ? priceBit : sumBit;
-      return `<li>
+      const why = denyReason(p.id, p.groupId);
+      return `<li class="${why ? 'denied' : ''}">
         <div>
           <div class="sku">${esc(p.sku || '—')} · ${esc(mfrLabel(p.source))}</div>
           <div class="nm">${esc(p.name || '')}</div>
+          ${why ? `<div class="why">${esc(why)}</div>` : ''}
         </div>
         <input type="number" min="1" step="1" value="${esc(p.qty)}" data-qty="${esc(p.id)}" aria-label="Количество"/>
         <div data-sum-for="${esc(p.id)}">${esc(priceLine)}</div>
@@ -1017,6 +1037,12 @@ tr.just-saved{background:#FDF6F2}
     return bits.join(' · ');
   }
 
+  function denyReason(partId, groupId){
+    const byPart = state.deniedParts.get(Number(partId));
+    if (byPart) return byPart;
+    if (groupId && state.deniedGroups.get(groupId)) return state.deniedGroups.get(groupId);
+    return '';
+  }
   function fillPick(items, total){
     const select = $('#hwPick');
     state.results = new Map();
@@ -1026,8 +1052,11 @@ tr.just-saved{background:#FDF6F2}
       const opt = document.createElement('option');
       opt.value = String(it.id);
       const sku = it.sku || '—';
-      opt.textContent = clip(sku + ' — ' + (it.name || ''), 110);
-      opt.title = (it.name || '') + (it.sku ? ' · ' + it.sku : '');
+      const why = denyReason(it.id, it.group_id);
+      const base = clip(sku + ' — ' + (it.name || ''), 80);
+      opt.textContent = why ? clip(base + ' · ' + why, 140) : clip(base, 110);
+      opt.title = why || ((it.name || '') + (it.sku ? ' · ' + it.sku : ''));
+      if (why) opt.disabled = true;
       select.appendChild(opt);
     });
     const add = $('#hwAdd');
@@ -1041,9 +1070,15 @@ tr.just-saved{background:#FDF6F2}
       $('#hwPickMeta').textContent = (q || state.source) ? 'Ничего не найдено' : 'В этой группе пусто';
       return;
     }
-    add.disabled = false;
+    const enabled = Array.from(select.options).find((opt) => !opt.disabled && opt.value);
+    if (enabled) select.value = enabled.value;
+    add.disabled = !enabled;
     const shown = select.options.length;
-    const bits = [describe(state.results.get(Number(select.value)))];
+    const current = state.results.get(Number(select.value));
+    const why = current ? denyReason(current.id, current.group_id) : '';
+    const bits = [];
+    if (why) bits.push(why);
+    else bits.push(describe(current));
     if (total > shown) bits.push('Показано ' + shown + ' из ' + total + '. Уточните поиск.');
     $('#hwPickMeta').textContent = bits.filter(Boolean).join(' · ');
   }
@@ -1080,27 +1115,75 @@ tr.just-saved{background:#FDF6F2}
     fillPick(data.items || [], data.total || 0);
   }
 
-  function renderGroups(groups){
+  function renderGroups(groups, keep){
     const host = $('#hwGroups');
     host.innerHTML = '';
     const list = groups || [];
-    const first = list.find((g) => g.count) || list[0];
-    state.group = first ? first.id : '';
+    if (!keep || !list.some((g) => g.id === state.group)) {
+      const first = list.find((g) => g.count) || list[0];
+      state.group = first ? first.id : '';
+    }
     list.forEach((g) => {
       const btn = document.createElement('button');
       btn.type = 'button';
+      const why = state.deniedGroups.get(g.id) || '';
       btn.textContent = g.title_ru || g.id;
       btn.dataset.group = g.id;
       if (!g.count) btn.disabled = true;
+      if (why) {
+        btn.classList.add('denied');
+        btn.title = why;
+      }
       if (g.id === state.group) btn.classList.add('active');
       btn.addEventListener('click', () => {
         if (btn.disabled) return;
         state.group = g.id;
         host.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b === btn));
+        showGroupHint();
         search();
       });
       host.appendChild(btn);
     });
+    showGroupHint();
+  }
+  function showGroupHint(){
+    const el = $('#hwGroupHint');
+    if (!el) return;
+    const why = state.deniedGroups.get(state.group) || '';
+    el.hidden = !why;
+    el.textContent = why;
+  }
+  async function refreshCompat(){
+    if (!state.catalogOk || !state.user) return;
+    const seq = ++compatSeq;
+    const params = new URLSearchParams();
+    const thick = val('glassThick');
+    if (thick) params.set('glass_mm', thick);
+    if (state.templateId) params.set('template_id', state.templateId);
+    try {
+      const data = await apiGet('/api/catalog/compat?' + params.toString());
+      if (seq !== compatSeq) return;
+      const deniedParts = new Map();
+      (data.parts || []).forEach((row) => {
+        if (row.effect === 'deny' && row.part_id != null) {
+          deniedParts.set(Number(row.part_id), row.reason || 'Не подходит к этой конфигурации');
+        }
+      });
+      const deniedGroups = new Map();
+      (data.groups || []).forEach((row) => {
+        if (row.effect === 'deny' && row.group_id) {
+          deniedGroups.set(row.group_id, row.reason || 'Группа не подходит к шаблону');
+        }
+      });
+      state.deniedParts = deniedParts;
+      state.deniedGroups = deniedGroups;
+    } catch (e) {
+      if (seq !== compatSeq) return;
+      if (e.status === 401) return;
+    }
+    if (state.catalogGroups.length) renderGroups(state.catalogGroups, true);
+    renderChosen();
+    await search();
   }
 
   function renderSources(sources){
@@ -1137,6 +1220,12 @@ tr.just-saved{background:#FDF6F2}
     const id = Number($('#hwPick').value);
     const it = state.results.get(id);
     if (!it) return;
+    const why = denyReason(it.id, it.group_id);
+    if (why) {
+      $('#hwPickMeta').textContent = why;
+      $('#hwAdd').disabled = true;
+      return;
+    }
     const qty = Math.max(1, Math.round(Number($('#hwQty').value) || 1));
     const existing = state.picks.find((p) => p.id === it.id);
     if (existing) existing.qty += qty;
@@ -1147,6 +1236,7 @@ tr.just-saved{background:#FDF6F2}
         name: it.name || '',
         price: priceNumber(it.price),
         groupTitle: it.group_title || '',
+        groupId: it.group_id || '',
         source: it.source || '',
         qty: qty
       });
@@ -1170,7 +1260,9 @@ tr.just-saved{background:#FDF6F2}
     });
     $('#hwPick').addEventListener('change', () => {
       const it = state.results.get(Number($('#hwPick').value));
-      $('#hwPickMeta').textContent = describe(it);
+      const why = it ? denyReason(it.id, it.group_id) : '';
+      $('#hwAdd').disabled = !it || !!why;
+      $('#hwPickMeta').textContent = why || describe(it);
     });
     $('#hwAdd').addEventListener('click', addSelected);
     $('#hwChosen').addEventListener('click', (ev) => {
@@ -1214,7 +1306,10 @@ tr.just-saved{background:#FDF6F2}
       render();
     });
     form.addEventListener('change', (ev) => {
-      if (ev.target.name === 'glassThick' || ev.target.name === 'glassKind' || ev.target.name === 'doors') render();
+      if (ev.target.name === 'glassThick' || ev.target.name === 'glassKind' || ev.target.name === 'doors') {
+        render();
+        if (ev.target.name === 'glassThick') refreshCompat();
+      }
     });
     try {
       await loadTemplates();
@@ -1253,7 +1348,8 @@ tr.just-saved{background:#FDF6F2}
       const data = await apiGet('/api/catalog?limit=1');
       state.catalogOk = true;
       state.showPrice = !!data.show_price;
-      renderGroups(data.groups || []);
+      state.catalogGroups = data.groups || [];
+      renderGroups(state.catalogGroups);
       renderSources(data.sources || []);
       $('#hwPicker').hidden = false;
       $('#hwAuth').hidden = true;
@@ -1261,7 +1357,7 @@ tr.just-saved{background:#FDF6F2}
         ? 'цены закупа в списке'
         : 'цены закупа для этой роли скрыты';
       setCatalogStatus(`Каталог · ${data.total} поз. · ${priceNote}`);
-      await search();
+      await refreshCompat();
     } catch (e) {
       state.catalogOk = false;
       $('#hwPicker').hidden = true;
