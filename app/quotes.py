@@ -72,6 +72,7 @@ class QuoteIn(BaseModel):
     glass_thick_mm: int
     glass_kind: str = ""
     items: list[QuoteItemIn] = Field(default_factory=list)
+    project_id: Optional[int] = None
 
 
 def round_money(n: float) -> float:

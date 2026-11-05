@@ -380,7 +380,7 @@
       if (file === 'admin.html' || file === 'owner.html') Auth.wireAdminUsers();
       else Auth.requireCabinet();
     });
-  } else if (file === 'login.html' || file === 'catalog.html') {
+  } else if (file === 'login.html' || file === 'catalog.html' || file === 'projects.html') {
     document.addEventListener('DOMContentLoaded', () => { ensureCsrf().catch(() => {}); });
   }
 })(window);

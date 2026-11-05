@@ -21,10 +21,10 @@
 Роли в системе: admin, owner, accountant, manager, measurer, installer, supply, production.
 
 ## Технически (коротко)
-- API на FastAPI + SQLite: `/api/auth/*`, `/api/users`, `/api/audit`
+- API на FastAPI + SQLite: `/api/auth/*`, `/api/users`, `/api/audit`, `/api/quotes`, `/api/projects`
 - База: `/var/www/dushevye/data/app.db` (не в public)
 - Сессия: подписанная cookie `dushevye_session` (HttpOnly, SameSite=Strict). Secure включается только при `DUSHEVYE_COOKIE_SECURE=1` после HTTPS
-- CSRF: `GET /api/auth/csrf`, затем заголовок `X-CSRF-Token` на login, logout, смену пароля, приглашение, смену роли и `POST /api/quotes`
+- CSRF: `GET /api/auth/csrf`, затем заголовок `X-CSRF-Token` на login, logout, смену пароля, приглашение, смену роли, `POST /api/quotes` и мутации `/api/projects`
 - Неудачный вход: не больше 5 попыток за 15 минут с одного IP и email, дальше ответ 429
 - Временный пароль приглашения показывается один раз в модалке, не через `alert()`
 - Сервис systemd: `dushevye-api`
