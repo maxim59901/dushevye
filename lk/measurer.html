@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Замерщик — ЛК Душевые</title>
+<link rel="stylesheet" href="lk.css"/>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">ДУШЕВЫЕ · ЛК</div>
+    <div class="role-pill">Замер · Замерщик</div>
+    <nav>
+      <a href="#dashboard" class="active">Обзор</a>
+<a href="#jobs" class="">Заявки на замер</a>
+<a href="#calendar" class="">Календарь</a>
+<a href="#forms" class="">Листы замера</a>
+<a href="#my-audit" class="">Мои изменения</a>
+      <a href="index.html">← Все роли</a>
+      <a href="../index.html">На витрину</a>
+    </nav>
+    <div class="foot">Демо-макет без auth. Тип учётки задаётся при регистрации по приглашению; сменить роль могут админ и хозяин.</div>
+  </aside>
+  <div class="main">
+    <div class="top">
+      <h1>Замерщик</h1>
+      <div class="meta">
+        <span class="badge demo">Демо</span>
+        <span class="badge muted">В истории версий — только ваши обновления</span>
+        <a class="btn ghost" href="index.html#invite">Приглашение</a>
+      </div>
+    </div>
+    <div class="content">
+      <p class="lead" style="color:var(--muted);margin:0 0 16px;font-size:14px">Выезды на замер, размеры проёмов, фото и передача данных в проект.</p>
+      <div class="grid stats" id="dashboard"><div class="card stat"><div class="label">На сегодня</div><div class="value">3</div><div class="hint">выезда</div></div>
+<div class="card stat"><div class="label">На неделе</div><div class="value">11</div><div class="hint">заявок</div></div>
+<div class="card stat"><div class="label">Черновики листов</div><div class="value">2</div><div class="hint">не отправлены</div></div>
+<div class="card stat"><div class="label">Сдано в проект</div><div class="value">48</div><div class="hint">за месяц</div></div></div>
+      
+<div class="grid two" style="margin-top:14px" id="jobs">
+  <div class="card">
+    <h2>Заявки на замер</h2>
+    <table>
+      <thead><tr><th>Когда</th><th>Адрес</th><th>Проект</th><th>Статус</th></tr></thead>
+      <tbody>
+        <tr><td>05.11 10:00</td><td>ул. Ленина, 12</td><td>PR-220</td><td><span class="tag info">назначен</span></td></tr>
+        <tr><td>05.11 14:30</td><td>пр. Мира, 5</td><td>PR-221</td><td><span class="tag">новый</span></td></tr>
+        <tr><td>06.11 11:00</td><td>ЖК «Линия» кв. 408</td><td>PR-201</td><td><span class="tag warn">уточнить доступ</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="card" id="forms">
+    <h2>Лист замера</h2>
+    <div class="field"><label>Ширина проёма, мм</label><input type="number" value="920"/></div>
+    <div class="field"><label>Высота, мм</label><input type="number" value="1980"/></div>
+    <div class="field"><label>Тип</label><select><option>Угловая</option><option>Прямая</option><option>Трапеция</option></select></div>
+    <div class="field"><label>Комментарий</label><textarea rows="3">Порог 12 мм, уклон к трапу.</textarea></div>
+    <div class="row"><button class="btn" type="button">Сохранить черновик</button><button class="btn dark" type="button">Сдать в проект</button></div>
+  </div>
+</div>
+<div class="card" style="margin-top:14px" id="calendar">
+  <h2>Календарь выездов</h2>
+  <div class="list">
+    <div class="item"><div><div class="t">Ср 05.11</div><div class="s">2 адреса · утро / день</div></div><span class="tag ok">ок</span></div>
+    <div class="item"><div><div class="t">Чт 06.11</div><div class="s">1 адрес · нужен пропуск</div></div><span class="tag warn">внимание</span></div>
+  </div>
+</div>
+
+      <div class="note">Без доступа к деньгам и закупочным ценам (кроме своей зоны). Auth и БД ещё не подключены — это рабочая заглушка экранов.</div>
+    </div>
+  </div>
+</div>
+<script src="auth.js"></script>
+</body>
+</html>

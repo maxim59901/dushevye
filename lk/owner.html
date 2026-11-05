@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Хозяин — ЛК Душевые</title>
+<link rel="stylesheet" href="lk.css"/>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">ДУШЕВЫЕ · ЛК</div>
+    <div class="role-pill">Владелец · Хозяин</div>
+    <nav>
+      <a href="#dashboard" class="active">Обзор</a>
+<a href="#finance" class="">Деньги</a>
+<a href="#purchases" class="">Закупки</a>
+<a href="#markup" class="">Наценка</a>
+<a href="#users" class="">Роли сотрудников</a>
+<a href="#audit" class="">Полный журнал</a>
+      <a href="catalog.html">Каталог фурнитуры</a>
+      <a href="index.html">← Все роли</a>
+      <a href="../index.html">На витрину</a>
+    </nav>
+    <div class="foot">Рабочий вход: учётки через API. Тип учётки задаётся при регистрации по приглашению; сменить роль могут админ и хозяин.</div>
+  </aside>
+  <div class="main">
+    <div class="top">
+      <h1>Хозяин</h1>
+      <div class="meta">
+        <span class="badge muted">Полный журнал</span>
+        <a class="btn" href="catalog.html">Каталог фурнитуры</a>
+        <a class="btn ghost" href="index.html#invite">Приглашение</a>
+      </div>
+    </div>
+    <div class="content">
+      <p class="lead" style="color:var(--muted);margin:0 0 16px;font-size:14px">Полный доступ: каталог комплектующих с закупом, деньги, закупки, наценка, роли, полный лог.</p>
+      <div class="card" id="catalog-box" style="margin-bottom:14px">
+        <h2>Каталог фурнитуры</h2>
+        <p class="lead">Реальные позиции с поставщиков (фото, артикул, параметры, цена закупа). Цифры выручки ниже — пока демо-заглушка.</p>
+        <div class="row" style="margin-top:10px">
+          <a class="btn" href="catalog.html">Открыть каталог</a>
+          <span class="badge muted" id="catalog-count">…</span>
+        </div>
+      </div>
+      <div class="grid stats" id="dashboard"><div class="card stat"><div class="label">Выручка (мес.)</div><div class="value">4,2 млн ₽</div><div class="hint">демо</div></div>
+<div class="card stat"><div class="label">Маржа</div><div class="value">31%</div><div class="hint">после наценки</div></div>
+<div class="card stat"><div class="label">Открытые КП</div><div class="value">18</div><div class="hint">в работе</div></div>
+<div class="card stat"><div class="label">Закупки в пути</div><div class="value">7</div><div class="hint">позиций</div></div></div>
+      
+<div class="grid two" style="margin-top:14px" id="finance">
+  <div class="card">
+    <h2>Деньги</h2>
+    <table>
+      <thead><tr><th>Статья</th><th class="num">Сумма</th><th>Статус</th></tr></thead>
+      <tbody>
+        <tr><td>Оплаты от клиентов</td><td class="num">2 410 000 ₽</td><td><span class="tag ok">мес.</span></td></tr>
+        <tr><td>Закупки фурнитуры</td><td class="num">860 000 ₽</td><td><span class="tag warn">в пути</span></td></tr>
+        <tr><td>ФОТ / подряд</td><td class="num">420 000 ₽</td><td><span class="tag">план</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="card" id="markup">
+    <h2>Наценка</h2>
+    <p class="lead">Правило: каждому менеджеру — своя цена. Число видов цен ещё уточняется.</p>
+    <table>
+      <thead><tr><th>Менеджер</th><th>Прайс</th><th class="num">Наценка</th></tr></thead>
+      <tbody>
+        <tr><td>Ирина К.</td><td>Прайс A</td><td class="num">28%</td></tr>
+        <tr><td>Денис М.</td><td>Прайс B</td><td class="num">22%</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+<div class="grid two" style="margin-top:14px" id="users">
+  <div class="card">
+    <h2>Роли сотрудников</h2>
+    <p class="lead">Тип учётки задаётся при регистрации по приглашению. Менять роль после — можете вы или админ.</p>
+    <table>
+      <thead><tr><th>Сотрудник</th><th>Роль</th><th></th></tr></thead>
+      <tbody>
+        <tr><td>Цех · смена 1</td><td><span class="tag">Производство</span></td><td><button class="btn ghost" type="button">Сменить роль</button></td></tr>
+        <tr><td>Склад снабжения</td><td><span class="tag info">Снабжение</span></td><td><button class="btn ghost" type="button">Сменить роль</button></td></tr>
+        <tr><td>Бригада монтажа</td><td><span class="tag">Монтажник</span></td><td><button class="btn ghost" type="button">Сменить роль</button></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="card" id="purchases">
+    <h2>Закупки</h2>
+    <div class="list">
+      <div class="item"><div><div class="t">Петли / уплотнители</div><div class="s">Поставщик «Фурнитура Плюс» · ETA 07.11</div></div><span class="tag warn">в пути</span></div>
+      <div class="item"><div><div class="t">Стекло 8 мм</div><div class="s">Заявка от производства #Q-118</div></div><span class="tag info">согласовать</span></div>
+    </div>
+  </div>
+</div>
+
+      <div class="note">Доступны закуп / наценка / деньги (по матрице роли). Учётки рабочие: приглашение создаёт пользователя и показывает пароль один раз. SMTP пока выключен.</div>
+    </div>
+  </div>
+</div>
+<script src="auth.js"></script>
+<script>
+(async function () {
+  try {
+    const data = await Auth.api('/api/catalog');
+    const n = data.total || (data.items && data.items.length) || 0;
+    const el = document.getElementById('catalog-count');
+    if (el) el.textContent = n ? (n + ' позиций') : 'каталог пуст';
+  } catch (e) {
+    const el = document.getElementById('catalog-count');
+    if (el) el.textContent = 'не загрузился';
+  }
+})();
+</script>
+</body>
+</html>

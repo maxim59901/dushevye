@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Каталог комплектующих — ЛК Душевые</title>
+<link rel="stylesheet" href="lk.css"/>
+<style>
+.catalog-filters{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;align-items:flex-end}
+.catalog-filters .field{margin:0;min-width:140px;flex:1}
+.catalog-filters .field.grow{flex:2;min-width:200px}
+.filter-row{margin-bottom:12px}
+.filter-row .label{
+  font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:8px
+}
+.group-chips,.mfr-chips{display:flex;flex-wrap:wrap;gap:8px}
+.group-chips button,.mfr-chips button{
+  border:1px solid var(--line);background:#fff;border-radius:999px;padding:7px 12px;
+  font-size:13px;font-weight:600;cursor:pointer;color:var(--graphite)
+}
+.group-chips button.active,.mfr-chips button.active{
+  background:var(--accent);border-color:var(--accent);color:#fff
+}
+.group-chips button .n,.mfr-chips button .n{opacity:.75;font-weight:500;margin-left:4px}
+.group-chips button:disabled,.mfr-chips button:disabled{opacity:.45;cursor:default}
+.parts-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.part-card{display:flex;flex-direction:column;padding:0;overflow:hidden;min-height:100%}
+.part-card .pic{
+  background:var(--soft);aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;
+  overflow:hidden;border-bottom:1px solid var(--line)
+}
+.part-card .pic img{width:100%;height:100%;object-fit:contain;background:#fff}
+.part-card .pic .ph{color:var(--muted);font-size:13px;padding:16px;text-align:center}
+.part-card .body{padding:12px 14px 14px;display:flex;flex-direction:column;gap:6px;flex:1}
+.part-card .sku{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.part-card h3{margin:0;font-size:14px;line-height:1.35;letter-spacing:-.01em}
+.part-card .meta-row{display:flex;flex-wrap:wrap;gap:6px}
+.part-card .price{margin-top:auto;font-size:16px;font-weight:700;letter-spacing:-.02em}
+.part-card .price.muted{font-size:13px;font-weight:500;color:var(--muted)}
+.part-card .params{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:2px}
+.part-card a.ext{font-size:12px;font-weight:600;color:var(--accent)}
+.catalog-status{font-size:13px;color:var(--muted);margin-bottom:12px}
+.section-block{margin-bottom:28px}
+.section-head{
+  display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+  margin:8px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--line)
+}
+.section-head h2{margin:0;font-size:16px;letter-spacing:-.01em}
+.section-head .cnt{font-size:13px;color:var(--muted);font-weight:600}
+@media (max-width:1100px){.parts-grid{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:800px){.parts-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">ДУШЕВЫЕ · ЛК</div>
+    <div class="role-pill">Каталог</div>
+    <nav>
+      <a href="catalog.html" class="active">Комплектующие</a>
+      <a href="#" id="backCabinet">← В кабинет</a>
+      <a href="index.html">Все роли</a>
+      <a href="../index.html">На витрину</a>
+    </nav>
+    <div class="foot">Каталог по производителям и группам. Цены закупа — хозяин, админ, бухгалтер.</div>
+  </aside>
+  <div class="main">
+    <div class="top">
+      <h1>Каталог комплектующих</h1>
+      <div class="meta">
+        <span class="badge demo">Каталог</span>
+        <span class="badge muted" id="totalBadge">—</span>
+      </div>
+    </div>
+    <div class="content">
+      <div class="catalog-filters">
+        <div class="field grow">
+          <label>Поиск</label>
+          <input type="text" id="q" placeholder="артикул, название, материал…"/>
+        </div>
+        <button class="btn" type="button" id="searchBtn">Найти</button>
+        <button class="btn ghost" type="button" id="resetBtn">Сбросить</button>
+      </div>
+      <div class="filter-row">
+        <div class="label">Производитель</div>
+        <div class="mfr-chips" id="manufacturers"></div>
+      </div>
+      <div class="filter-row">
+        <div class="label">Группа</div>
+        <div class="group-chips" id="groups"></div>
+      </div>
+      <div class="catalog-status" id="status">Загрузка…</div>
+      <div id="sections"></div>
+    </div>
+  </div>
+</div>
+<script src="auth.js"></script>
+<script>
+(function () {
+  const SOURCE_LABEL = {
+    titan: 'ТИТАН',
+    arabella: 'Арабелла',
+    syndicate: 'Синдикат',
+    pauli: 'PAULI',
+    servicepls: 'ServicePLS',
+    oporto: 'Oporto',
+  };
+  const SOURCE_ORDER = ['titan', 'arabella', 'syndicate', 'pauli', 'servicepls', 'oporto'];
+  let state = { group: '', source: '', q: '', showPrice: false, user: null };
+  let lastGroups = [];
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function money(v) {
+    if (v == null || v === '') return null;
+    const n = Number(v);
+    if (Number.isNaN(n)) return null;
+    return n.toLocaleString('ru-RU', { maximumFractionDigits: 0 }) + ' ₽';
+  }
+  function placeholder() {
+    return '<div class="ph">Нет фото</div>';
+  }
+  function mfrLabel(id) {
+    return SOURCE_LABEL[id] || id;
+  }
+  function sortSources(list) {
+    const rank = Object.fromEntries(SOURCE_ORDER.map((id, i) => [id, i]));
+    return (list || []).slice().sort((a, b) => {
+      const ra = rank[a.id] != null ? rank[a.id] : 99;
+      const rb = rank[b.id] != null ? rank[b.id] : 99;
+      if (ra !== rb) return ra - rb;
+      return String(a.id).localeCompare(String(b.id));
+    });
+  }
+
+  function renderCard(it) {
+    let img;
+    if (it.image_url) {
+      img = '<img src="' + esc(it.image_url) + '" alt="" loading="lazy"/>';
+    } else {
+      img = placeholder();
+    }
+    const tags = [];
+    tags.push('<span class="tag info">' + esc(mfrLabel(it.source)) + '</span>');
+    if (it.in_stock === true) tags.push('<span class="tag ok">В наличии</span>');
+    if (it.in_stock === false) tags.push('<span class="tag warn">Под заказ</span>');
+    const params = [];
+    if (it.material) params.push('<div>Материал: <b>' + esc(it.material) + '</b></div>');
+    if (it.finish) params.push('<div>Отделка: <b>' + esc(it.finish) + '</b></div>');
+    if (it.glass_mm) params.push('<div>Стекло: <b>' + esc(it.glass_mm) + ' мм</b></div>');
+    const extra = Object.entries(it.params || {}).slice(0, 3);
+    extra.forEach(([k, v]) => params.push('<div>' + esc(k) + ': <b>' + esc(v) + '</b></div>'));
+    let priceHtml;
+    if (state.showPrice) {
+      const m = money(it.price);
+      priceHtml = m ? '<div class="price">' + m + '</div>' : '<div class="price muted">Цена не указана</div>';
+    } else {
+      priceHtml = '<div class="price muted">Цена закупа скрыта</div>';
+    }
+    const link = it.url
+      ? '<a class="ext" href="' + esc(it.url) + '" target="_blank" rel="noopener">На сайте поставщика</a>'
+      : '';
+    return (
+      '<article class="card part-card">' +
+      '<div class="pic">' + img + '</div>' +
+      '<div class="body">' +
+      '<div class="sku">' + esc(it.sku || '—') + '</div>' +
+      '<h3>' + esc(it.name) + '</h3>' +
+      '<div class="meta-row">' + tags.join('') + '</div>' +
+      (params.length ? '<div class="params">' + params.join('') + '</div>' : '') +
+      priceHtml + link +
+      '</div></article>'
+    );
+  }
+
+  function bindImgFallback(root) {
+    root.querySelectorAll('img').forEach((im) => {
+      im.addEventListener('error', () => {
+        const d = document.createElement('div');
+        d.className = 'ph';
+        d.textContent = 'Нет фото';
+        im.replaceWith(d);
+      });
+    });
+  }
+
+  function renderSections(items) {
+    const host = document.getElementById('sections');
+    if (!items.length) {
+      host.innerHTML = '';
+      return;
+    }
+    // Section by group (API already sorts by group.sort, source, name)
+    const order = [];
+    const buckets = {};
+    items.forEach((it) => {
+      const key = it.group_id || '_other';
+      if (!buckets[key]) {
+        buckets[key] = {
+          id: key,
+          title: it.group_title || 'Прочее',
+          items: [],
+        };
+        order.push(key);
+      }
+      buckets[key].items.push(it);
+    });
+    // Prefer known group order from API meta when available
+    if (lastGroups.length) {
+      const known = lastGroups.map((g) => g.id).filter((id) => buckets[id]);
+      const rest = order.filter((id) => !known.includes(id));
+      order.length = 0;
+      known.concat(rest).forEach((id) => order.push(id));
+    }
+    host.innerHTML = order.map((key) => {
+      const sec = buckets[key];
+      return (
+        '<section class="section-block" data-group="' + esc(sec.id) + '">' +
+        '<div class="section-head">' +
+        '<h2>' + esc(sec.title) + '</h2>' +
+        '<span class="cnt">' + sec.items.length + '</span>' +
+        '</div>' +
+        '<div class="parts-grid">' +
+        sec.items.map(renderCard).join('') +
+        '</div></section>'
+      );
+    }).join('');
+    bindImgFallback(host);
+  }
+
+  async function load() {
+    const params = new URLSearchParams();
+    if (state.group) params.set('group', state.group);
+    if (state.source) params.set('source', state.source);
+    if (state.q) params.set('q', state.q);
+    params.set('limit', '1000');
+    const status = document.getElementById('status');
+    status.textContent = 'Загрузка…';
+    let data;
+    try {
+      data = await Auth.api('/api/catalog?' + params.toString());
+    } catch (e) {
+      status.textContent = e.message || 'Ошибка загрузки';
+      return;
+    }
+    state.showPrice = !!data.show_price;
+    lastGroups = data.groups || [];
+    document.getElementById('totalBadge').textContent = data.total + ' поз.';
+    const mfrName = state.source ? mfrLabel(state.source) : null;
+    const groupMeta = (data.groups || []).find((g) => g.id === state.group);
+    const bits = [];
+    if (mfrName) bits.push(mfrName);
+    if (groupMeta) bits.push(groupMeta.title_ru);
+    if (state.q) bits.push('«' + state.q + '»');
+    status.textContent = data.total
+      ? ('Показано ' + data.items.length + ' из ' + data.total
+        + (bits.length ? ' · ' + bits.join(' · ') : '')
+        + (state.showPrice ? '' : ' · закупочные цены скрыты'))
+      : 'Ничего не найдено';
+
+    // Manufacturer chips (counts already cross-filtered by group+q)
+    const mfrEl = document.getElementById('manufacturers');
+    const sources = sortSources(data.sources || []);
+    const mfrTotal = sources.reduce((s, x) => s + (x.count || 0), 0);
+    mfrEl.innerHTML =
+      '<button type="button" data-s="" class="' + (!state.source ? 'active' : '') + '">Все<span class="n">' + mfrTotal + '</span></button>' +
+      sources.map((s) =>
+        '<button type="button" data-s="' + esc(s.id) + '" class="' + (state.source === s.id ? 'active' : '') + '"' +
+        (s.count ? '' : ' disabled') + '>' +
+        esc(mfrLabel(s.id)) + '<span class="n">' + (s.count || 0) + '</span></button>'
+      ).join('');
+    mfrEl.querySelectorAll('button').forEach((btn) => {
+      btn.onclick = () => {
+        if (btn.disabled) return;
+        state.source = btn.getAttribute('data-s') || '';
+        load();
+      };
+    });
+
+    // Group chips (counts cross-filtered by manufacturer+q)
+    const groupsEl = document.getElementById('groups');
+    const groups = data.groups || [];
+    const allCount = groups.reduce((s, g) => s + (g.count || 0), 0);
+    groupsEl.innerHTML =
+      '<button type="button" data-g="" class="' + (!state.group ? 'active' : '') + '">Все<span class="n">' + allCount + '</span></button>' +
+      groups.map((g) =>
+        '<button type="button" data-g="' + esc(g.id) + '" class="' + (state.group === g.id ? 'active' : '') + '"' +
+        (g.count ? '' : ' disabled') + '>' +
+        esc(g.title_ru) + '<span class="n">' + (g.count || 0) + '</span></button>'
+      ).join('');
+    groupsEl.querySelectorAll('button').forEach((btn) => {
+      btn.onclick = () => {
+        if (btn.disabled) return;
+        state.group = btn.getAttribute('data-g') || '';
+        load();
+      };
+    });
+
+    renderSections(data.items || []);
+  }
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    let data;
+    try { data = await Auth.me(); }
+    catch (e) {
+      location.replace('login.html?next=' + encodeURIComponent(location.pathname));
+      return;
+    }
+    state.user = data.user;
+    Auth.mountChrome(state.user);
+    const back = document.getElementById('backCabinet');
+    back.href = Auth.cabinetUrl(state.user);
+    back.textContent = '← ' + (Auth.ROLE_LABEL[state.user.role] || 'Кабинет');
+    document.getElementById('searchBtn').onclick = () => {
+      state.q = document.getElementById('q').value.trim();
+      load();
+    };
+    document.getElementById('resetBtn').onclick = () => {
+      state.q = ''; state.source = ''; state.group = '';
+      document.getElementById('q').value = '';
+      load();
+    };
+    document.getElementById('q').addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') document.getElementById('searchBtn').click();
+    });
+    load();
+  });
+})();
+</script>
+</body>
+</html>

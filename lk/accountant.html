@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Бухгалтер — ЛК Душевые</title>
+<link rel="stylesheet" href="lk.css"/>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">ДУШЕВЫЕ · ЛК</div>
+    <div class="role-pill">Учёт · Бухгалтер</div>
+    <nav>
+      <a href="#dashboard" class="active">Обзор</a>
+<a href="#invoices" class="">Счета</a>
+<a href="#acts" class="">Акты</a>
+<a href="#costs" class="">Закуп / наценка</a>
+<a href="#my-audit" class="">Мои изменения</a>
+      <a href="catalog.html">Каталог фурнитуры</a>
+      <a href="index.html">← Все роли</a>
+      <a href="../index.html">На витрину</a>
+    </nav>
+    <div class="foot">Демо-макет без auth. Тип учётки задаётся при регистрации по приглашению; сменить роль могут админ и хозяин.</div>
+  </aside>
+  <div class="main">
+    <div class="top">
+      <h1>Бухгалтер</h1>
+      <div class="meta">
+        <span class="badge demo">Демо</span>
+        <span class="badge muted">В истории версий — только ваши обновления</span>
+        <a class="btn ghost" href="index.html#invite">Приглашение</a>
+      </div>
+    </div>
+    <div class="content">
+      <p class="lead" style="color:var(--muted);margin:0 0 16px;font-size:14px">Счета и акты; видит закуп и наценку; в истории — только свои обновления.</p>
+      <div class="grid stats" id="dashboard"><div class="card stat"><div class="label">Счета к оплате</div><div class="value">12</div><div class="hint">на 1,8 млн ₽</div></div>
+<div class="card stat"><div class="label">Акты черновики</div><div class="value">5</div><div class="hint">ждут подписи</div></div>
+<div class="card stat"><div class="label">Оплачено (мес.)</div><div class="value">2,4 млн ₽</div><div class="hint">демо</div></div>
+<div class="card stat"><div class="label">Мои правки</div><div class="value">41</div><div class="hint">в журнале</div></div></div>
+      
+<div class="grid two" style="margin-top:14px" id="invoices">
+  <div class="card">
+    <h2>Счета</h2>
+    <table>
+      <thead><tr><th>№</th><th>Контрагент</th><th class="num">Сумма</th><th>Статус</th></tr></thead>
+      <tbody>
+        <tr><td>1042</td><td>ООО «Север»</td><td class="num">186 400 ₽</td><td><span class="tag warn">ожидает</span></td></tr>
+        <tr><td>1041</td><td>ИП Ковалёв</td><td class="num">72 100 ₽</td><td><span class="tag ok">оплачен</span></td></tr>
+        <tr><td>1039</td><td>ЖК «Линия»</td><td class="num">410 000 ₽</td><td><span class="tag">черновик</span></td></tr>
+      </tbody>
+    </table>
+    <div class="row" style="margin-top:12px"><button class="btn" type="button">Новый счёт</button><button class="btn ghost" type="button">Экспорт</button></div>
+  </div>
+  <div class="card" id="acts">
+    <h2>Акты</h2>
+    <div class="list">
+      <div class="item"><div><div class="t">Акт №88 · монтаж</div><div class="s">Проект PR-214</div></div><button class="btn ghost" type="button">Открыть</button></div>
+      <div class="item"><div><div class="t">Акт №87 · поставка</div><div class="s">Ожидает подписи</div></div><span class="tag warn">черновик</span></div>
+    </div>
+  </div>
+</div>
+<div class="card" style="margin-top:14px" id="costs">
+  <h2>Закуп / наценка (просмотр)</h2>
+  <p class="lead">Бухгалтер видит закуп и наценку. В журнале версий — только свои правки.</p>
+  <table>
+    <thead><tr><th>Позиция</th><th class="num">Закуп</th><th class="num">Наценка</th><th class="num">Отпускная</th></tr></thead>
+    <tbody>
+      <tr><td>Петля стекл. хром</td><td class="num">420 ₽</td><td class="num">28%</td><td class="num">538 ₽</td></tr>
+      <tr><td>Уплотнитель м.п.</td><td class="num">65 ₽</td><td class="num">35%</td><td class="num">88 ₽</td></tr>
+    </tbody>
+  </table>
+</div>
+
+      <div class="note">Видит закуп и наценку; счета и акты. Auth и БД ещё не подключены — это рабочая заглушка экранов.</div>
+    </div>
+  </div>
+</div>
+<script src="auth.js"></script>
+</body>
+</html>

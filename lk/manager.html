@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Менеджер — ЛК Душевые</title>
+<link rel="stylesheet" href="lk.css"/>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">ДУШЕВЫЕ · ЛК</div>
+    <div class="role-pill">Продажи · Менеджер</div>
+    <nav>
+      <a href="#dashboard" class="active">Обзор</a>
+<a href="#projects" class="">Проекты</a>
+<a href="#quotes" class="">КП</a>
+<a href="#stock" class="">Склад (резерв)</a>
+<a href="#my-audit" class="">Мои изменения</a>
+      <a href="catalog.html">Каталог фурнитуры</a>
+      <a href="index.html">← Все роли</a>
+      <a href="../index.html">На витрину</a>
+    </nav>
+    <div class="foot">Демо-макет без auth. Тип учётки задаётся при регистрации по приглашению; сменить роль могут админ и хозяин.</div>
+  </aside>
+  <div class="main">
+    <div class="top">
+      <h1>Менеджер</h1>
+      <div class="meta">
+        <span class="badge demo">Демо</span>
+        <span class="badge muted">В истории версий — только ваши обновления</span>
+        <a class="btn ghost" href="index.html#invite">Приглашение</a>
+      </div>
+    </div>
+    <div class="content">
+      <p class="lead" style="color:var(--muted);margin:0 0 16px;font-size:14px">Проекты и КП; склад — смотрит и резервирует; без денег и закупок; лог — только свои.</p>
+      <div class="grid stats" id="dashboard"><div class="card stat"><div class="label">Мои проекты</div><div class="value">9</div><div class="hint">активных</div></div>
+<div class="card stat"><div class="label">КП на согласовании</div><div class="value">4</div><div class="hint">ждут клиента</div></div>
+<div class="card stat"><div class="label">Резервы на складе</div><div class="value">6</div><div class="hint">позиций</div></div>
+<div class="card stat"><div class="label">Мои правки</div><div class="value">27</div><div class="hint">в журнале</div></div></div>
+      
+<div class="grid two" style="margin-top:14px" id="projects">
+  <div class="card">
+    <h2>Мои проекты</h2>
+    <table>
+      <thead><tr><th>Проект</th><th>Клиент</th><th>Этап</th><th></th></tr></thead>
+      <tbody>
+        <tr><td>PR-214</td><td>ООО «Север»</td><td><span class="tag info">замер сдан</span></td><td><button class="btn ghost" type="button">Открыть</button></td></tr>
+        <tr><td>PR-209</td><td>ИП Ковалёв</td><td><span class="tag warn">КП</span></td><td><button class="btn ghost" type="button">Открыть</button></td></tr>
+        <tr><td>PR-201</td><td>ЖК «Линия»</td><td><span class="tag">производство</span></td><td><button class="btn ghost" type="button">Открыть</button></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="card" id="quotes">
+    <h2>КП</h2>
+    <p class="lead">Ваша отпускная цена — по прайсу, который выдал хозяин. Закуп и наценка скрыты.</p>
+    <div class="list">
+      <div class="item"><div><div class="t">КП-778 · угловая 900×900</div><div class="s">186 400 ₽ · ваша цена</div></div><a class="btn ghost" href="../cfg.html">Конфигуратор</a></div>
+      <div class="item"><div><div class="t">КП-771 · прямая раздвижная</div><div class="s">ожидает ответа</div></div><span class="tag warn">на согласовании</span></div>
+    </div>
+  </div>
+</div>
+<div class="card" style="margin-top:14px" id="stock">
+  <h2>Склад — просмотр и резерв</h2>
+  <table>
+    <thead><tr><th>Позиция</th><th class="num">Свободно</th><th class="num">Резерв</th><th></th></tr></thead>
+    <tbody>
+      <tr><td>Петля стекл. хром</td><td class="num">42</td><td class="num">6</td><td><button class="btn ghost" type="button">Резерв</button></td></tr>
+      <tr><td>Ручка кноб чёрн.</td><td class="num">18</td><td class="num">2</td><td><button class="btn ghost" type="button">Резерв</button></td></tr>
+    </tbody>
+  </table>
+</div>
+
+      <div class="note">Без доступа к деньгам и закупочным ценам (кроме своей зоны). Auth и БД ещё не подключены — это рабочая заглушка экранов.</div>
+    </div>
+  </div>
+</div>
+<script src="auth.js"></script>
+</body>
+</html>

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Снабжение — ЛК Душевые</title>
+<link rel="stylesheet" href="lk.css"/>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">ДУШЕВЫЕ · ЛК</div>
+    <div class="role-pill">Закупки · Снабжение</div>
+    <nav>
+      <a href="#dashboard" class="active">Обзор</a>
+<a href="#requests" class="">Заявки на закуп</a>
+<a href="#orders" class="">Заказы поставщикам</a>
+<a href="#suppliers" class="">Поставщики</a>
+<a href="#incoming" class="">Приход на склад</a>
+<a href="#my-audit" class="">Мои изменения</a>
+      <a href="index.html">← Все роли</a>
+      <a href="../index.html">На витрину</a>
+    </nav>
+    <div class="foot">Демо-макет без auth. Тип учётки задаётся при регистрации по приглашению; сменить роль могут админ и хозяин.</div>
+  </aside>
+  <div class="main">
+    <div class="top">
+      <h1>Снабжение</h1>
+      <div class="meta">
+        <span class="badge demo">Демо</span>
+        <span class="badge muted">В истории версий — только ваши обновления</span>
+        <a class="btn ghost" href="index.html#invite">Приглашение</a>
+      </div>
+    </div>
+    <div class="content">
+      <p class="lead" style="color:var(--muted);margin:0 0 16px;font-size:14px">Закупки и поставщики: заявки, заказы, сроки поставки, склад входящий.</p>
+      <div class="grid stats" id="dashboard"><div class="card stat"><div class="label">Открытые заявки</div><div class="value">8</div><div class="hint">от производства/менеджеров</div></div>
+<div class="card stat"><div class="label">Заказы в пути</div><div class="value">5</div><div class="hint">ожидаем поставку</div></div>
+<div class="card stat"><div class="label">Поставщики</div><div class="value">14</div><div class="hint">в справочнике</div></div>
+<div class="card stat"><div class="label">Просрочки</div><div class="value">1</div><div class="hint">требует внимания</div></div></div>
+      
+<div class="grid two" style="margin-top:14px" id="requests">
+  <div class="card">
+    <h2>Заявки на закуп</h2>
+    <table>
+      <thead><tr><th>№</th><th>От кого</th><th>Позиции</th><th>Статус</th></tr></thead>
+      <tbody>
+        <tr><td>Q-118</td><td>Производство</td><td>Стекло 8 мм · 12 м²</td><td><span class="tag warn">нужен заказ</span></td></tr>
+        <tr><td>Q-117</td><td>Менеджер</td><td>Петли ×40</td><td><span class="tag info">в заказе</span></td></tr>
+        <tr><td>Q-115</td><td>Монтаж</td><td>Направляющая</td><td><span class="tag bad">просрочка</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="card" id="orders">
+    <h2>Заказы поставщикам</h2>
+    <div class="list">
+      <div class="item"><div><div class="t">PO-441 · Фурнитура Плюс</div><div class="s">ETA 07.11 · 186 000 ₽</div></div><span class="tag warn">в пути</span></div>
+      <div class="item"><div><div class="t">PO-438 · СтеклоСервис</div><div class="s">Счёт получен</div></div><button class="btn ghost" type="button">Открыть</button></div>
+    </div>
+    <div class="row" style="margin-top:12px"><button class="btn" type="button">Новый заказ</button></div>
+  </div>
+</div>
+<div class="grid two" style="margin-top:14px" id="suppliers">
+  <div class="card">
+    <h2>Поставщики</h2>
+    <table>
+      <thead><tr><th>Название</th><th>Категория</th><th>Срок</th></tr></thead>
+      <tbody>
+        <tr><td>Фурнитура Плюс</td><td>Петли, ручки</td><td>5–7 дн.</td></tr>
+        <tr><td>СтеклоСервис</td><td>Стекло</td><td>3–5 дн.</td></tr>
+        <tr><td>ПрофильТорг</td><td>Профиль</td><td>7–10 дн.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="card" id="incoming">
+    <h2>Приход на склад</h2>
+    <div class="list">
+      <div class="item"><div><div class="t">Ожидаем PO-441</div><div class="s">07.11 · ворота 2</div></div><button class="btn ghost" type="button">Принять</button></div>
+      <div class="item"><div><div class="t">Приход PO-430</div><div class="s">Проведён вчера</div></div><span class="tag ok">ok</span></div>
+    </div>
+  </div>
+</div>
+
+      <div class="note">Работает с закупками и поставщиками; финальная видимость цен — по матрице хозяина. Auth и БД ещё не подключены — это рабочая заглушка экранов.</div>
+    </div>
+  </div>
+</div>
+<script src="auth.js"></script>
+</body>
+</html>

@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Конфигуратор КП — Душевые</title>
+<meta name="description" content="Черновик коммерческого предложения по душевому ограждению. Цены примерные."/>
+<style>
+:root{--graphite:#2B2F33;--accent:#C45A2C;--bg:#F7F7F5;--muted:#6B7280;--white:#fff;--line:#E5E7EB;--soft:#EEF0F2}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--graphite);line-height:1.45}
+a{color:inherit;text-decoration:none}
+header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 32px;background:var(--white);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:10}
+.logo{font-weight:700;letter-spacing:.08em;font-size:14px}
+.nav{display:flex;gap:16px;font-size:14px;font-weight:500;flex-wrap:wrap}
+.nav a:hover{color:var(--accent)}
+.btn{display:inline-flex;align-items:center;justify-content:center;background:var(--accent);color:#fff;border:0;border-radius:10px;padding:11px 18px;font-weight:600;cursor:pointer;font-size:14px}
+.btn.ghost{background:transparent;color:var(--graphite);border:1px solid var(--graphite)}
+.btn:hover{filter:brightness(.97)}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 32px 56px;display:grid;grid-template-columns:1.05fr .95fr;gap:22px;align-items:start}
+h1{font-size:28px;margin:0 0 6px;letter-spacing:-.02em}
+.lead{margin:0 0 18px;color:var(--muted);font-size:15px}
+.panel{background:var(--white);border:1px solid var(--line);border-radius:16px;padding:20px}
+.panel h2{font-size:15px;margin:0 0 12px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
+.field .hint{display:block;font-size:12px;color:var(--muted);font-weight:400;margin-top:4px}
+.seg{display:flex;flex-wrap:wrap;gap:8px}
+.seg label{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:9px 12px;cursor:pointer;font-size:13px;font-weight:500;background:var(--white)}
+.seg input{accent-color:var(--accent)}
+.seg label:has(input:checked){border-color:var(--accent);background:#FDF6F2}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+input[type=number],select{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:inherit;background:#fff;color:var(--graphite)}
+input[type=number]:focus,select:focus{outline:2px solid rgba(196,90,44,.25);border-color:var(--accent)}
+.preview{position:sticky;top:76px}
+.preview .badge{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);background:#FDF6F2;border-radius:999px;padding:4px 10px;margin-bottom:10px}
+.preview .title{font-size:20px;font-weight:700;margin:0 0 4px}
+.preview .sub{color:var(--muted);font-size:13px;margin:0 0 16px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:8px 0;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+td.num,th.num{text-align:right;white-space:nowrap}
+.total{display:flex;justify-content:space-between;align-items:baseline;margin-top:14px;padding-top:12px;border-top:2px solid var(--graphite)}
+.total .sum{font-size:24px;font-weight:700}
+.disclaimer{margin-top:12px;font-size:12px;color:var(--muted);background:var(--soft);border-radius:10px;padding:10px 12px}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+.foot{max-width:1180px;margin:0 auto;padding:0 32px 32px;color:var(--muted);font-size:13px}
+@media (max-width:900px){
+  header{padding:12px 16px}.wrap{grid-template-columns:1fr;padding:20px 16px 40px}
+  .preview{position:static}.grid2,.grid3{grid-template-columns:1fr}
+  .foot{padding:0 16px 24px}
+}
+@media print{
+  body{background:#fff}
+  header .nav,.actions, .no-print{display:none!important}
+  header{position:static;border:0;padding:0 0 12px}
+  .wrap{display:block;padding:0;max-width:none}
+  .panel{border:0;padding:0;box-shadow:none}
+  .form-panel{display:none!important}
+  .preview{position:static}
+  .disclaimer{border:1px solid #ccc;background:#fff}
+  a[href]::after{content:""}
+}
+</style>
+</head>
+<body>
+<header>
+  <a class="logo" href="index.html">ДУШЕВЫЕ</a>
+  <div class="nav">
+    <a href="index.html">Витрина</a>
+    <a href="index.html#types">Типы</a>
+    <a href="index.html#contacts">Контакты</a>
+  </div>
+  <button class="btn ghost no-print" type="button" onclick="window.print()">Печать / PDF</button>
+</header>
+<main class="wrap">
+  <section class="panel form-panel">
+    <h1>Конфигуратор КП</h1>
+    <p class="lead">Черновик для производства и дилеров. Цены зашиты как демо-константы — это не прайс и не оферта.</p>
+
+    <div class="panel" style="padding:16px;margin-bottom:14px;background:var(--soft);border:0">
+      <h2>1. Тип конструкции</h2>
+      <div class="seg" id="typeSeg">
+        <label><input type="radio" name="type" value="corner" checked> Угловая</label>
+        <label><input type="radio" name="type" value="straight"> Прямая</label>
+        <label><input type="radio" name="type" value="niche"> Ниша</label>
+        <label><input type="radio" name="type" value="sliding"> Раздвижная</label>
+        <label><input type="radio" name="type" value="accordion"> Гармошка</label>
+      </div>
+    </div>
+
+    <div class="panel" style="padding:16px;margin-bottom:14px;background:var(--soft);border:0">
+      <h2>2. Размеры проёма, мм</h2>
+      <div class="grid3">
+        <div class="field">
+          <label for="width">Ширина</label>
+          <input id="width" type="number" min="400" max="4000" step="1" value="900"/>
+        </div>
+        <div class="field">
+          <label for="height">Высота</label>
+          <input id="height" type="number" min="400" max="3000" step="1" value="2000"/>
+        </div>
+        <div class="field" id="depthField">
+          <label for="depth">Глубина</label>
+          <input id="depth" type="number" min="400" max="2000" step="1" value="900"/>
+          <span class="hint">Для угловой и ниши</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="padding:16px;margin-bottom:14px;background:var(--soft);border:0">
+      <h2>3. Стекло</h2>
+      <div class="grid2">
+        <div class="field">
+          <label>Толщина</label>
+          <div class="seg">
+            <label><input type="radio" name="glassThick" value="8" checked> 8 мм</label>
+            <label><input type="radio" name="glassThick" value="10"> 10 мм</label>
+          </div>
+        </div>
+        <div class="field">
+          <label>Вид</label>
+          <div class="seg">
+            <label><input type="radio" name="glassKind" value="clear" checked> Прозрачное</label>
+            <label><input type="radio" name="glassKind" value="matte"> Матовое</label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="padding:16px;background:var(--soft);border:0">
+      <h2>4. Фурнитура</h2>
+      <div class="seg">
+        <label><input type="radio" name="hw" value="base" checked> Базовый набор</label>
+        <label><input type="radio" name="hw" value="strong"> Усиленный</label>
+      </div>
+      <span class="hint" style="display:block;margin-top:8px">Заглушки: петли/ролики, ручки, уплотнители — без реального склада.</span>
+    </div>
+  </section>
+
+  <aside class="panel preview" id="preview">
+    <div class="badge">Демо · не оферта</div>
+    <p class="title" id="kpTitle">КП · Душевые</p>
+    <p class="sub" id="kpSub">Черновик расчёта</p>
+    <table>
+      <thead>
+        <tr><th>Позиция</th><th class="num">Сумма, ₽</th></tr>
+      </thead>
+      <tbody id="kpRows"></tbody>
+    </table>
+    <div class="total">
+      <span>Итого примерно</span>
+      <span class="sum" id="kpTotal">0 ₽</span>
+    </div>
+    <div class="disclaimer">Цены примерные, для демонстрации конфигуратора. Не являются коммерческим предложением и публичной офертой. Финальный расчёт — после прайса и замера.</div>
+    <div class="actions no-print">
+      <button class="btn" type="button" onclick="window.print()">Печать / сохранить PDF</button>
+      <a class="btn ghost" href="index.html">На витрину</a>
+    </div>
+  </aside>
+</main>
+<p class="foot">Душевые · проект Станок · конфигуратор без авторизации и без БД</p>
+<script>
+(function(){
+  // DEMO constants — not a real price list
+  const DEMO = {
+    glassPerSqm: {8: 4200, 10: 5100},
+    glassKindMult: {clear: 1, matte: 1.18},
+    hardware: {base: 9800, strong: 15400},
+    typeFactor: {corner: 1.12, straight: 1.0, niche: 1.08, sliding: 1.15, accordion: 1.22},
+    typeLabel: {
+      corner: 'Угловая',
+      straight: 'Прямая',
+      niche: 'Ниша',
+      sliding: 'Раздвижная',
+      accordion: 'Гармошка'
+    },
+    kindLabel: {clear: 'прозрачное', matte: 'матовое'},
+    hwLabel: {base: 'Базовый набор фурнитуры', strong: 'Усиленный набор фурнитуры'}
+  };
+
+  const $ = (s, el=document) => el.querySelector(s);
+  const $$ = (s, el=document) => [...el.querySelectorAll(s)];
+
+  function val(name){
+    const el = document.querySelector(`input[name="${name}"]:checked`);
+    return el ? el.value : null;
+  }
+  function num(id){ return Math.max(0, Number($(id).value) || 0); }
+
+  function areaSqm(type, w, h, d){
+    // rough glass area estimate for demo
+    const Wm = w/1000, Hm = h/1000, Dm = d/1000;
+    if(type === 'corner') return (Wm + Dm) * Hm;
+    if(type === 'niche') return (Wm + 2*Dm) * Hm * 0.55; // simplified niche faces
+    if(type === 'accordion') return Wm * Hm * 1.15;
+    return Wm * Hm; // straight / sliding
+  }
+
+  function money(n){
+    return new Intl.NumberFormat('ru-RU', {maximumFractionDigits:0}).format(Math.round(n)) + ' ₽';
+  }
+
+  function syncDepth(){
+    const type = val('type');
+    const need = (type === 'corner' || type === 'niche');
+    $('#depthField').style.display = need ? '' : 'none';
+  }
+
+  function render(){
+    syncDepth();
+    const type = val('type');
+    const w = num('#width'), h = num('#height'), d = num('#depth');
+    const thick = val('glassThick');
+    const kind = val('glassKind');
+    const hw = val('hw');
+
+    const area = areaSqm(type, w, h, d);
+    const glassUnit = DEMO.glassPerSqm[thick] * DEMO.glassKindMult[kind];
+    const glassSum = area * glassUnit * DEMO.typeFactor[type];
+    const hwSum = DEMO.hardware[hw];
+    const installDemo = Math.round((glassSum + hwSum) * 0.08);
+    const total = glassSum + hwSum + installDemo;
+
+    const sizeTxt = (type === 'corner' || type === 'niche')
+      ? `${w}×${h}×${d} мм`
+      : `${w}×${h} мм`;
+
+    $('#kpTitle').textContent = `КП · ${DEMO.typeLabel[type]}`;
+    $('#kpSub').textContent = `Проём ${sizeTxt} · стекло ${thick} мм, ${DEMO.kindLabel[kind]} · площадь ≈ ${area.toFixed(2)} м²`;
+
+    const rows = [
+      [`Стекло ${thick} мм, ${DEMO.kindLabel[kind]} (≈ ${area.toFixed(2)} м²)`, glassSum],
+      [DEMO.hwLabel[hw], hwSum],
+      ['Сборка / логистика (демо 8%)', installDemo]
+    ];
+    $('#kpRows').innerHTML = rows.map(([name, sum]) =>
+      `<tr><td>${name}</td><td class="num">${money(sum)}</td></tr>`
+    ).join('');
+    $('#kpTotal').textContent = money(total);
+  }
+
+  $$('input, select').forEach(el => el.addEventListener('input', render));
+  $$('input[type=radio]').forEach(el => el.addEventListener('change', render));
+  render();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Производство — ЛК Душевые</title>
+<link rel="stylesheet" href="lk.css"/>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">ДУШЕВЫЕ · ЛК</div>
+    <div class="role-pill">Цех · Производство</div>
+    <nav>
+      <a href="#dashboard" class="active">Обзор</a>
+<a href="#queue" class="">Очередь цеха</a>
+<a href="#cutting" class="">Раскрой</a>
+<a href="#assembly" class="">Сборка</a>
+<a href="#ready" class="">К отгрузке</a>
+<a href="#my-audit" class="">Мои изменения</a>
+      <a href="index.html">← Все роли</a>
+      <a href="../index.html">На витрину</a>
+    </nav>
+    <div class="foot">Демо-макет без auth. Тип учётки задаётся при регистрации по приглашению; сменить роль могут админ и хозяин.</div>
+  </aside>
+  <div class="main">
+    <div class="top">
+      <h1>Производство</h1>
+      <div class="meta">
+        <span class="badge demo">Демо</span>
+        <span class="badge muted">В истории версий — только ваши обновления</span>
+        <a class="btn ghost" href="index.html#invite">Приглашение</a>
+      </div>
+    </div>
+    <div class="content">
+      <p class="lead" style="color:var(--muted);margin:0 0 16px;font-size:14px">Очередь цеха: раскрой, сборка, статусы заказов, готовность к отгрузке.</p>
+      <div class="grid stats" id="dashboard"><div class="card stat"><div class="label">В очереди</div><div class="value">15</div><div class="hint">заказов</div></div>
+<div class="card stat"><div class="label">В раскрое</div><div class="value">4</div><div class="hint">сегодня</div></div>
+<div class="card stat"><div class="label">На сборке</div><div class="value">6</div><div class="hint">позиций</div></div>
+<div class="card stat"><div class="label">Готово к отгрузке</div><div class="value">3</div><div class="hint">ждут логистику</div></div></div>
+      
+<div class="card" style="margin-top:14px" id="queue">
+  <h2>Очередь цеха</h2>
+  <table>
+    <thead><tr><th>Заказ</th><th>Изделие</th><th>Приоритет</th><th>Этап</th><th></th></tr></thead>
+    <tbody>
+      <tr><td>#322</td><td>Угловая 900×900</td><td><span class="tag bad">срочно</span></td><td>ожидает раскрой</td><td><button class="btn ghost" type="button">В работу</button></td></tr>
+      <tr><td>#321</td><td>Раздвижная 1200</td><td><span class="tag warn">высокий</span></td><td>сборка</td><td><button class="btn ghost" type="button">Статус</button></td></tr>
+      <tr><td>#318</td><td>Прямая 800</td><td><span class="tag">обычный</span></td><td>готов</td><td><button class="btn" type="button">К отгрузке</button></td></tr>
+      <tr><td>#315</td><td>U-кабина</td><td><span class="tag">обычный</span></td><td>раскрой</td><td><button class="btn ghost" type="button">Открыть</button></td></tr>
+    </tbody>
+  </table>
+</div>
+<div class="grid cards" style="margin-top:14px">
+  <div class="card" id="cutting">
+    <h3>Раскрой</h3>
+    <p class="lead">4 заказа в смене. Демо-список раскроя стекла и профиля.</p>
+    <div class="row"><button class="btn ghost" type="button">Лист раскроя</button></div>
+  </div>
+  <div class="card" id="assembly">
+    <h3>Сборка</h3>
+    <p class="lead">6 позиций на столах. Отметить готовность → «к отгрузке».</p>
+    <div class="row"><button class="btn ghost" type="button">Доска сборки</button></div>
+  </div>
+  <div class="card" id="ready">
+    <h3>К отгрузке</h3>
+    <p class="lead">3 готовых комплекта ждут логистику / монтаж.</p>
+    <div class="row"><button class="btn" type="button">Передать</button></div>
+  </div>
+</div>
+
+      <div class="note">Без доступа к деньгам и закупочным ценам (кроме своей зоны). Auth и БД ещё не подключены — это рабочая заглушка экранов.</div>
+    </div>
+  </div>
+</div>
+<script src="auth.js"></script>
+</body>
+</html>

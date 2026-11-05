@@ -1,0 +1,90 @@
+/* Душевые / Станок — ЛК */
+:root{
+  --graphite:#2B2F33;--accent:#C45A2C;--bg:#F4F4F2;--muted:#6B7280;
+  --white:#fff;--line:#E5E7EB;--soft:#EEF0F2;--ok:#1B7F4E;--warn:#B45309;--bad:#B91C1C;
+  --side:#1F2326;--side-text:#C9CDD1;--side-active:#fff;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--graphite);line-height:1.45}
+a{color:inherit;text-decoration:none}
+button,input,select,textarea{font:inherit}
+.app{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
+.side{background:var(--side);color:var(--side-text);padding:20px 14px;display:flex;flex-direction:column;gap:8px}
+.side .brand{color:#fff;font-weight:700;letter-spacing:.08em;font-size:13px;padding:6px 10px 16px}
+.side .role-pill{display:inline-flex;align-items:center;gap:6px;background:#2A3035;color:#F3D2C3;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:600;margin:0 10px 14px}
+.side nav{display:flex;flex-direction:column;gap:2px}
+.side a,.side .nav-item{display:block;padding:9px 12px;border-radius:10px;font-size:14px;color:var(--side-text)}
+.side a:hover,.side .nav-item:hover{background:#2A3035;color:#fff}
+.side a.active{background:var(--accent);color:#fff}
+.side .foot{margin-top:auto;padding:12px 10px;font-size:12px;color:#8B9198}
+.main{display:flex;flex-direction:column;min-width:0}
+.top{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 24px;background:var(--white);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+.top h1{margin:0;font-size:18px;letter-spacing:-.01em}
+.top .meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.badge{display:inline-flex;align-items:center;border-radius:999px;padding:4px 10px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+.badge.demo{background:#FDF6F2;color:var(--accent)}
+.badge.ok{background:#E8F6EE;color:var(--ok)}
+.badge.warn{background:#FEF3C7;color:var(--warn)}
+.badge.muted{background:var(--soft);color:var(--muted)}
+.content{padding:22px 24px 40px;max-width:1180px;width:100%;margin:0 auto}
+.grid{display:grid;gap:14px}
+.grid.stats{grid-template-columns:repeat(4,1fr)}
+.grid.two{grid-template-columns:1.2fr .8fr}
+.grid.cards{grid-template-columns:repeat(3,1fr)}
+.card{background:var(--white);border:1px solid var(--line);border-radius:14px;padding:16px 18px}
+.card h2,.card h3{margin:0 0 8px;font-size:15px}
+.card .lead{margin:0;color:var(--muted);font-size:13px}
+.stat .label{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.stat .value{font-size:26px;font-weight:700;margin:6px 0 2px;letter-spacing:-.02em}
+.stat .hint{font-size:12px;color:var(--muted)}
+.btn{display:inline-flex;align-items:center;justify-content:center;background:var(--accent);color:#fff;border:0;border-radius:10px;padding:10px 16px;font-weight:600;cursor:pointer;font-size:13px}
+.btn.ghost{background:transparent;color:var(--graphite);border:1px solid var(--line)}
+.btn.dark{background:var(--graphite)}
+.btn:hover{filter:brightness(.97)}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:10px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em;font-weight:600}
+td.num,th.num{text-align:right;white-space:nowrap}
+.tag{display:inline-block;border-radius:8px;padding:3px 8px;font-size:11px;font-weight:600;background:var(--soft);color:var(--graphite)}
+.tag.ok{background:#E8F6EE;color:var(--ok)}
+.tag.warn{background:#FEF3C7;color:var(--warn)}
+.tag.bad{background:#FEE2E2;color:var(--bad)}
+.tag.info{background:#E8EEF7;color:#1D4ED8}
+.note{background:var(--soft);border-radius:12px;padding:12px 14px;font-size:13px;color:var(--muted);margin-top:14px}
+.field{margin-bottom:12px}
+.field label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
+.field .hint{font-size:12px;color:var(--muted);font-weight:400;margin-top:4px}
+input[type=text],input[type=email],input[type=password],input[type=date],input[type=number],select,textarea{
+  width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fff;color:var(--graphite)
+}
+input:focus,select:focus,textarea:focus{outline:2px solid rgba(196,90,44,.25);border-color:var(--accent)}
+.list{display:flex;flex-direction:column;gap:8px}
+.list .item{display:flex;justify-content:space-between;gap:12px;padding:12px;border:1px solid var(--line);border-radius:12px;background:#fff}
+.list .item .t{font-weight:600;font-size:14px}
+.list .item .s{font-size:12px;color:var(--muted);margin-top:2px}
+.roles-index{max-width:1100px;margin:0 auto;padding:32px 24px 56px}
+.roles-index header{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:24px}
+.roles-index .logo{font-weight:700;letter-spacing:.08em}
+.roles-index h1{font-size:28px;margin:0 0 8px;letter-spacing:-.02em}
+.roles-index .lead{color:var(--muted);margin:0 0 22px;max-width:48em}
+.role-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.role-card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:8px;min-height:160px}
+.role-card:hover{border-color:var(--accent)}
+.role-card .k{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.role-card h3{margin:0;font-size:17px}
+.role-card p{margin:0;color:var(--muted);font-size:13px;flex:1}
+.role-card .go{font-size:13px;font-weight:600;color:var(--accent)}
+.invite-box{margin-top:28px}
+@media (max-width:1100px){
+  .grid.stats{grid-template-columns:repeat(2,1fr)}
+  .grid.two,.grid.cards,.role-grid{grid-template-columns:1fr 1fr}
+}
+@media (max-width:800px){
+  .app{grid-template-columns:1fr}
+  .side{padding:14px}
+  .side nav{display:grid;grid-template-columns:1fr 1fr}
+  .content,.top{padding-left:16px;padding-right:16px}
+  .role-grid,.grid.cards,.grid.two,.grid.stats{grid-template-columns:1fr}
+}

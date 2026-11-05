@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Вход — ЛК Душевые</title>
+<link rel="stylesheet" href="lk.css"/>
+<style>
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:var(--bg)}
+.login-card{width:100%;max-width:420px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:28px 26px}
+.login-card .logo{font-weight:700;letter-spacing:.08em;font-size:13px;margin-bottom:6px}
+.login-card h1{margin:0 0 6px;font-size:22px;letter-spacing:-.02em}
+.login-card .sub{color:var(--muted);font-size:13px;margin:0 0 20px}
+.err{background:#FEE2E2;color:var(--bad);border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:12px;display:none}
+.ok{background:#E8F6EE;color:var(--ok);border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:12px;display:none}
+.links{margin-top:16px;font-size:13px;color:var(--muted);display:flex;gap:12px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div class="login-wrap">
+  <form class="login-card" id="loginForm" autocomplete="on">
+    <div class="logo">ДУШЕВЫЕ · СТАНОК</div>
+    <h1>Вход в кабинет</h1>
+    <p class="sub">Логин — ваша почта. Пароль выдали при создании учётки (или сменили сами).</p>
+    <div class="err" id="err"></div>
+    <div class="ok" id="ok"></div>
+    <div class="field"><label for="email">Email</label><input id="email" name="email" type="email" required placeholder="name@company.ru" autocomplete="username"/></div>
+    <div class="field"><label for="password">Пароль</label><input id="password" name="password" type="password" required placeholder="••••••••" autocomplete="current-password"/></div>
+    <button class="btn" type="submit" style="width:100%">Войти</button>
+    <div class="links">
+      <a href="../index.html">← На витрину</a>
+      <a href="../cfg.html">Конфигуратор</a>
+    </div>
+  </form>
+</div>
+<script src="auth.js"></script>
+<script>
+(async function(){
+  // already logged in?
+  try {
+    const me = await Auth.me();
+    if (me && me.user) { location.replace(Auth.cabinetUrl(me.user)); return; }
+  } catch(e) {}
+
+  const form = document.getElementById('loginForm');
+  const err = document.getElementById('err');
+  const ok = document.getElementById('ok');
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    err.style.display='none'; ok.style.display='none';
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    try {
+      const data = await Auth.login(email, password);
+      ok.textContent = 'Вход выполнен…';
+      ok.style.display='block';
+      location.replace(Auth.cabinetUrl(data.user));
+    } catch (ex) {
+      err.textContent = ex.message || 'Не удалось войти';
+      err.style.display='block';
+    }
+  });
+})();
+</script>
+</body>
+</html>

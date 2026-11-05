@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Монтажник — ЛК Душевые</title>
+<link rel="stylesheet" href="lk.css"/>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">ДУШЕВЫЕ · ЛК</div>
+    <div class="role-pill">Монтаж · Монтажник</div>
+    <nav>
+      <a href="#dashboard" class="active">Обзор</a>
+<a href="#trips" class="">Выезды</a>
+<a href="#schedule" class="">График</a>
+<a href="#kits" class="">Комплектация</a>
+<a href="#acts" class="">Акты монтажа</a>
+<a href="#my-audit" class="">Мои изменения</a>
+      <a href="index.html">← Все роли</a>
+      <a href="../index.html">На витрину</a>
+    </nav>
+    <div class="foot">Демо-макет без auth. Тип учётки задаётся при регистрации по приглашению; сменить роль могут админ и хозяин.</div>
+  </aside>
+  <div class="main">
+    <div class="top">
+      <h1>Монтажник</h1>
+      <div class="meta">
+        <span class="badge demo">Демо</span>
+        <span class="badge muted">В истории версий — только ваши обновления</span>
+        <a class="btn ghost" href="index.html#invite">Приглашение</a>
+      </div>
+    </div>
+    <div class="content">
+      <p class="lead" style="color:var(--muted);margin:0 0 16px;font-size:14px">Выезды и монтаж: график, адреса, комплектация, акты выполненных работ.</p>
+      <div class="grid stats" id="dashboard"><div class="card stat"><div class="label">Монтажи сегодня</div><div class="value">2</div><div class="hint">адреса</div></div>
+<div class="card stat"><div class="label">На неделе</div><div class="value">7</div><div class="hint">выездов</div></div>
+<div class="card stat"><div class="label">Ожидают комплектацию</div><div class="value">1</div><div class="hint">заказ</div></div>
+<div class="card stat"><div class="label">Акты к закрытию</div><div class="value">3</div><div class="hint">черновика</div></div></div>
+      
+<div class="grid two" style="margin-top:14px" id="trips">
+  <div class="card">
+    <h2>Выезды / монтаж</h2>
+    <table>
+      <thead><tr><th>Дата</th><th>Адрес</th><th>Заказ</th><th>Статус</th></tr></thead>
+      <tbody>
+        <tr><td>05.11 09:00</td><td>ул. Садовая, 3</td><td>#318</td><td><span class="tag info">выезд</span></td></tr>
+        <tr><td>05.11 15:00</td><td>пер. Тихий, 9</td><td>#321</td><td><span class="tag warn">ждём комплект</span></td></tr>
+        <tr><td>06.11 10:00</td><td>ЖК «Линия»</td><td>#301</td><td><span class="tag">план</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="card" id="kits">
+    <h2>Комплектация</h2>
+    <div class="list">
+      <div class="item"><div><div class="t">#318 · угловая</div><div class="s">Стекло + фурнитура на складе</div></div><span class="tag ok">готово</span></div>
+      <div class="item"><div><div class="t">#321 · раздвижная</div><div class="s">Нет направляющей</div></div><span class="tag bad">неполный</span></div>
+    </div>
+  </div>
+</div>
+<div class="grid two" style="margin-top:14px" id="schedule">
+  <div class="card">
+    <h2>График</h2>
+    <p class="lead">Рабочая заглушка: бригада видит только свои выезды.</p>
+    <div class="list">
+      <div class="item"><div><div class="t">Сегодня</div><div class="s">2 монтажа</div></div><button class="btn ghost" type="button">Маршрут</button></div>
+      <div class="item"><div><div class="t">Завтра</div><div class="s">1 монтаж</div></div><button class="btn ghost" type="button">Детали</button></div>
+    </div>
+  </div>
+  <div class="card" id="acts">
+    <h2>Акты монтажа</h2>
+    <div class="list">
+      <div class="item"><div><div class="t">Акт по #301</div><div class="s">Черновик после монтажа</div></div><button class="btn" type="button">Заполнить</button></div>
+      <div class="item"><div><div class="t">Акт по #295</div><div class="s">Подписан клиентом</div></div><span class="tag ok">закрыт</span></div>
+    </div>
+  </div>
+</div>
+
+      <div class="note">Без доступа к деньгам и закупочным ценам (кроме своей зоны). Auth и БД ещё не подключены — это рабочая заглушка экранов.</div>
+    </div>
+  </div>
+</div>
+<script src="auth.js"></script>
+</body>
+</html>

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Админ — ЛК Душевые</title>
+<link rel="stylesheet" href="lk.css"/>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">ДУШЕВЫЕ · ЛК</div>
+    <div class="role-pill">Система · Админ</div>
+    <nav>
+      <a href="#dashboard" class="active">Обзор</a>
+<a href="#users" class="">Пользователи и роли</a>
+<a href="#invite" class="">Приглашения</a>
+<a href="#settings" class="">Настройки</a>
+<a href="#audit" class="">Полный журнал</a>
+<a href="#prices" class="">Закуп / наценка</a>
+      <a href="catalog.html">Каталог фурнитуры</a>
+      <a href="index.html">← Все роли</a>
+      <a href="../index.html">На витрину</a>
+    </nav>
+    <div class="foot">Рабочий вход: учётки через API. Тип учётки задаётся при регистрации по приглашению; сменить роль могут админ и хозяин.</div>
+  </aside>
+  <div class="main">
+    <div class="top">
+      <h1>Админ</h1>
+      <div class="meta">
+        <a class="btn" href="catalog.html">Каталог фурнитуры</a>
+        <span class="badge demo">Демо</span>
+        <span class="badge muted">Полный журнал изменений</span>
+        <a class="btn ghost" href="index.html#invite">Приглашение</a>
+      </div>
+    </div>
+    <div class="content">
+      <p class="lead" style="color:var(--muted);margin:0 0 16px;font-size:14px">Настройка системы, пользователи, роли, полный лог, закуп и наценка.</p>
+      <div class="grid stats" id="dashboard"><div class="card stat"><div class="label">Пользователи</div><div class="value">24</div><div class="hint">активных учёток</div></div>
+<div class="card stat"><div class="label">Приглашения</div><div class="value">3</div><div class="hint">ожидают принятия</div></div>
+<div class="card stat"><div class="label">Роли</div><div class="value">8</div><div class="hint">типов учёток</div></div>
+<div class="card stat"><div class="label">События за сутки</div><div class="value">186</div><div class="hint">в полном журнале</div></div></div>
+      
+<div class="grid two" style="margin-top:14px" id="users">
+  <div class="card">
+    <h2>Пользователи и роли</h2>
+    <p class="lead">Тип учётки задаётся при регистрации (выбор роли в форме приглашения). Потом роль меняют только админ или хозяин.</p>
+    <table>
+      <thead><tr><th>Сотрудник</th><th>Роль сейчас</th><th>Сменить на</th><th></th></tr></thead>
+      <tbody>
+        <tr><td>Ирина К.</td><td><span class="tag info">Менеджер</span></td><td><select><option>Менеджер</option><option>Бухгалтер</option><option>Замерщик</option><option>Монтажник</option><option>Снабжение</option><option>Производство</option><option>Админ</option></select></td><td><button class="btn ghost" type="button">Сохранить</button></td></tr>
+        <tr><td>Павел С.</td><td><span class="tag">Замерщик</span></td><td><select><option>Замерщик</option><option>Монтажник</option><option>Менеджер</option></select></td><td><button class="btn ghost" type="button">Сохранить</button></td></tr>
+        <tr><td>Ольга В.</td><td><span class="tag ok">Бухгалтер</span></td><td><select><option>Бухгалтер</option><option>Админ</option></select></td><td><button class="btn ghost" type="button">Сохранить</button></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="card" id="invite">
+    <h2>Приглашение</h2>
+    <p class="lead">Ссылка с заранее выбранной ролью. При регистрации роль уже стоит в форме; пользователь её не меняет сам.</p>
+    <div class="field"><label>Email</label><input type="email" placeholder="name@company.ru" value=""/></div>
+    <div class="field"><label>Роль при регистрации</label>
+      <select>
+        <option>Менеджер</option><option>Бухгалтер</option><option>Замерщик</option>
+        <option>Монтажник</option><option>Снабжение</option><option>Производство</option><option>Админ</option>
+      </select>
+      <span class="hint">Хозяина назначают отдельно; обычное приглашение — без роли «Хозяин».</span>
+    </div>
+    <div class="row"><button class="btn" type="button">Создать приглашение</button><button class="btn ghost" type="button">Скопировать ссылку</button></div>
+  </div>
+</div>
+<div class="grid two" style="margin-top:14px" id="audit">
+  <div class="card">
+    <h2>Полный журнал</h2>
+    <table>
+      <thead><tr><th>Когда</th><th>Кто</th><th>Что</th></tr></thead>
+      <tbody>
+        <tr><td>04.11 21:12</td><td>Админ</td><td>Сменил роль Ирины К.: Замерщик → Менеджер</td></tr>
+        <tr><td>04.11 18:40</td><td>Ольга В.</td><td>Выставила счёт №1042</td></tr>
+        <tr><td>04.11 16:05</td><td>Производство</td><td>Статус заказа #318: сборка → готов</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="card" id="settings">
+    <h2>Настройки системы</h2>
+    <div class="list">
+      <div class="item"><div><div class="t">Часовой пояс</div><div class="s">Europe/Moscow</div></div><button class="btn ghost" type="button">Изменить</button></div>
+      <div class="item"><div><div class="t">Политика ролей</div><div class="s">Смена роли — только админ/хозяин</div></div><span class="tag ok">Вкл</span></div>
+      <div class="item"><div><div class="t">Полный лог</div><div class="s">Хозяин и админ видят всё</div></div><span class="tag ok">Вкл</span></div>
+    </div>
+  </div>
+</div>
+
+      <div class="note">Доступны закуп / наценка / деньги (по матрице роли). Учётки рабочие: приглашение создаёт пользователя и показывает пароль один раз. SMTP пока выключен.</div>
+    </div>
+  </div>
+</div>
+<script src="auth.js"></script>
+</body>
+</html>
