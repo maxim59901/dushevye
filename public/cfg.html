@@ -49,6 +49,13 @@ td.sku{font-size:12px;font-weight:700;white-space:nowrap}
 .total .sum{font-size:24px;font-weight:700}
 .disclaimer{margin-top:12px;font-size:12px;color:var(--muted);background:var(--soft);border-radius:10px;padding:10px 12px}
 .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+.save-status{margin-top:10px;font-size:13px;min-height:1.2em}
+.save-status a{color:var(--accent);font-weight:600}
+.save-status a+a,.quote-links a+a{margin-left:12px}
+.save-status.err{color:#9B1C1C}
+.quotes-panel{max-width:1180px;margin:0 auto;padding:0 32px 8px}
+.quotes-panel .hint{margin:0 0 10px}
+tr.just-saved{background:#FDF6F2}
 .foot{max-width:1180px;margin:0 auto;padding:0 32px 32px;color:var(--muted);font-size:13px}
 .chosen{list-style:none;margin:4px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
 .chosen li{display:grid;grid-template-columns:minmax(0,1fr) 76px auto auto;gap:8px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 10px}
@@ -65,6 +72,7 @@ td.sku{font-size:12px;font-weight:700;white-space:nowrap}
   .wrap{grid-template-columns:minmax(0,1fr);padding:20px 16px 40px}
   .preview{position:static}.grid2,.grid3{grid-template-columns:1fr}
   .foot{padding:0 16px 24px}
+  .quotes-panel{padding:0 16px 8px}
   .chosen li{grid-template-columns:minmax(0,1fr)}
   .seg button{white-space:normal;text-align:left}
   th,td{padding:6px 4px 6px 0}
@@ -96,12 +104,12 @@ td.sku{font-size:12px;font-weight:700;white-space:nowrap}
     <a href="lk/catalog.html">Каталог</a>
     <a href="lk/login.html?next=%2Fcfg.html" id="loginLink">Войти</a>
   </div>
-  <button class="btn ghost no-print" type="button" onclick="window.print()">Печать / PDF</button>
+  <button class="btn ghost no-print" type="button" onclick="window.print()">Печать черновика</button>
 </header>
 <main class="wrap">
   <section class="panel form-panel">
     <h1>Конфигуратор КП</h1>
-    <p class="lead">Черновик для производства. Фурнитура и цена закупа берутся из каталога. Стекло считается по площади и ставке — финальный расчёт после замера.</p>
+    <p class="lead">Черновик для производства. Фурнитура и цена закупа берутся из каталога. Стекло считается по площади и ставке. После входа расчёт можно сохранить и скачать PDF.</p>
 
     <div class="panel" style="padding:16px;margin-bottom:14px;background:var(--soft);border:0">
       <h2>1. Тип конструкции</h2>
@@ -216,16 +224,41 @@ td.sku{font-size:12px;font-weight:700;white-space:nowrap}
     </div>
     <div class="disclaimer" id="kpNote">Стекло — оценка по площади. Финальный расчёт после замера.</div>
     <div class="actions no-print">
-      <button class="btn" type="button" onclick="window.print()">Печать / сохранить PDF</button>
+      <button class="btn" type="button" id="saveQuote">Сохранить КП</button>
+      <button class="btn ghost" type="button" onclick="window.print()">Печать черновика</button>
       <a class="btn ghost" href="index.html">На витрину</a>
     </div>
+    <div class="save-status no-print" id="saveStatus"></div>
   </aside>
 </main>
-<p class="foot">Душевые · проект Станок · черновик КП: фурнитура из каталога, стекло по оценке площади</p>
+<section class="quotes-panel no-print" id="myQuotes" hidden>
+  <div class="panel">
+    <h2>Сохранённые КП</h2>
+    <p class="hint" id="quoteListNote"></p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>№</th>
+            <th>Дата</th>
+            <th>Тип</th>
+            <th>Проём</th>
+            <th class="num">Фурнитура</th>
+            <th class="num">Итого</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="quoteList"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+<p class="foot">Душевые · проект Станок · черновик КП хранится в базе после входа, PDF со спецификацией собирается на сервере</p>
 <script>
 (function(){
   // GLASS_RATES — ставки стекла (оценка площади × коэффициент). Это не DEMO hardware.
   // Фурнитура и её цены приходят только из GET /api/catalog (price). Наборы base/strong удалены.
+  // Ставки и areaSqm продублированы в app/quotes.py. Менять только вместе: сервер пересчитывает КП при сохранении.
   const GLASS_RATES = {
     perSqm: {8: 4200, 10: 5100},
     kindMult: {clear: 1, matte: 1.18},
@@ -263,8 +296,11 @@ td.sku{font-size:12px;font-weight:700;white-space:nowrap}
     picks: [],
     showPrice: false,
     catalogOk: false,
-    results: new Map()
+    results: new Map(),
+    user: null,
+    lastSavedId: null
   };
+  let csrfToken = null;
 
   const $ = (s, el=document) => el.querySelector(s);
   let searchSeq = 0;
@@ -325,7 +361,147 @@ td.sku{font-size:12px;font-weight:700;white-space:nowrap}
   function errorMessage(data, status){
     const d = data && data.detail;
     if (typeof d === 'string' && d) return d;
+    if (Array.isArray(d) && d.length) {
+      return d.map((item) => (item && item.msg) || '').filter(Boolean).join('; ') || ('Ошибка ' + status);
+    }
     return 'Ошибка ' + status;
+  }
+  async function ensureCsrf(force){
+    if (csrfToken && !force) return csrfToken;
+    const res = await fetch('/api/auth/csrf', {credentials: 'same-origin'});
+    let data = null;
+    try { data = await res.json(); } catch (e) { data = null; }
+    if (!res.ok || !data || !data.csrfToken) throw new Error('Не удалось получить CSRF-токен');
+    csrfToken = data.csrfToken;
+    return csrfToken;
+  }
+  async function apiPost(path, body, retried){
+    const token = await ensureCsrf(!!retried);
+    const res = await fetch(path, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {'Content-Type': 'application/json', 'X-CSRF-Token': token},
+      body: JSON.stringify(body)
+    });
+    let data = null;
+    try { data = await res.json(); } catch (e) { data = null; }
+    if (!res.ok) {
+      const msg = errorMessage(data, res.status);
+      if (res.status === 403 && !retried && /csrf/i.test(msg)) {
+        csrfToken = null;
+        return apiPost(path, body, true);
+      }
+      const err = new Error(msg);
+      err.status = res.status;
+      throw err;
+    }
+    return data;
+  }
+  function pdfAnchors(id){
+    const n = Number(id);
+    if (!Number.isInteger(n) || n <= 0) return '';
+    const open = '/api/quotes/' + n + '/pdf';
+    return '<a href="' + open + '" target="_blank" rel="noopener">Открыть PDF</a>' +
+      '<a href="' + open + '?download=1">Скачать PDF</a>';
+  }
+  function quoteSize(q){
+    if (q.fence_type === 'corner' || q.fence_type === 'niche') {
+      return q.width_mm + '×' + q.height_mm + '×' + (q.depth_mm == null ? '—' : q.depth_mm) + ' мм';
+    }
+    return q.width_mm + '×' + q.height_mm + ' мм';
+  }
+  function draftPayload(){
+    const type = val('type');
+    const depth = Math.round(num('#depth'));
+    const body = {
+      fence_type: type,
+      width_mm: Math.round(num('#width')),
+      height_mm: Math.round(num('#height')),
+      glass_thick_mm: Number(val('glassThick')),
+      glass_kind: val('glassKind'),
+      items: state.picks
+        .filter((p) => Number(p.qty) >= 1)
+        .map((p) => ({id: Number(p.id), qty: Math.max(1, Math.round(Number(p.qty)))}))
+    };
+    const needDepth = type === 'corner' || type === 'niche';
+    if (needDepth || (depth >= 400 && depth <= 2000)) body.depth_mm = depth;
+    return body;
+  }
+  function syncSaveButton(){
+    const btn = $('#saveQuote');
+    if (!btn) return;
+    btn.textContent = state.user ? 'Сохранить КП' : 'Войти и сохранить';
+  }
+  async function loadQuotes(){
+    const panel = $('#myQuotes');
+    if (!state.user) {
+      panel.hidden = true;
+      return;
+    }
+    panel.hidden = false;
+    const note = $('#quoteListNote');
+    let data;
+    try {
+      data = await apiGet('/api/quotes?limit=30');
+    } catch (e) {
+      note.textContent = e.message || 'Не удалось загрузить список КП';
+      $('#quoteList').innerHTML = '';
+      return;
+    }
+    const items = data.items || [];
+    note.textContent = data.show_price
+      ? 'Итог включает оценку стекла и закуп фурнитуры на момент сохранения.'
+      : 'Итог — оценка стекла. Закуп фурнитуры для этой роли скрыт; в PDF есть состав BOM без цен закупа.';
+    if (!items.length) {
+      $('#quoteList').innerHTML = '<tr><td colspan="7">Пока нет сохранённых КП</td></tr>';
+      return;
+    }
+    $('#quoteList').innerHTML = items.map((q) => {
+      const n = Number(q.id);
+      const type = TYPE_LABEL[q.fence_type] || q.fence_type || '';
+      const who = data.can_see_org
+        ? '<div class="hint">' + esc(q.author_name || q.author_email || '') + '</div>'
+        : '';
+      const cls = state.lastSavedId === n ? ' class="just-saved"' : '';
+      return '<tr' + cls + '>' +
+        '<td>' + (Number.isInteger(n) ? n : '') + '</td>' +
+        '<td>' + esc((q.created_at || '').replace('T', ' ').slice(0, 16)) + '</td>' +
+        '<td>' + esc(type) + who + '</td>' +
+        '<td>' + esc(quoteSize(q)) + '</td>' +
+        '<td class="num">' + esc(q.hardware_count) + '</td>' +
+        '<td class="num">' + esc(money(q.total)) + '</td>' +
+        '<td class="num quote-links">' + pdfAnchors(n) + '</td>' +
+        '</tr>';
+    }).join('');
+  }
+  async function onSave(){
+    if (!state.user) {
+      location.href = 'lk/login.html?next=' + encodeURIComponent('/cfg.html');
+      return;
+    }
+    const btn = $('#saveQuote');
+    const status = $('#saveStatus');
+    btn.disabled = true;
+    status.classList.remove('err');
+    status.textContent = 'Сохраняю…';
+    try {
+      const data = await apiPost('/api/quotes', draftPayload());
+      const q = data.quote || {};
+      const n = Number(q.id);
+      state.lastSavedId = n;
+      status.innerHTML = 'КП №' + n + ' сохранено · итог ' + esc(money(q.total)) + '. ' + pdfAnchors(n);
+      await loadQuotes();
+    } catch (e) {
+      status.classList.add('err');
+      if (e.status === 401) {
+        status.innerHTML = esc(e.message || 'Нужен вход') +
+          ' <a href="lk/login.html?next=' + encodeURIComponent('/cfg.html') + '">Войти</a>';
+      } else {
+        status.textContent = e.message || 'Не удалось сохранить';
+      }
+    } finally {
+      btn.disabled = false;
+    }
   }
   async function apiGet(path, signal){
     const res = await fetch(path, {credentials: 'same-origin', signal});
@@ -640,13 +816,20 @@ td.sku{font-size:12px;font-weight:700;white-space:nowrap}
 
   async function boot(){
     bindPicker();
+    $('#saveQuote').addEventListener('click', onSave);
+    syncSaveButton();
     render();
     let me = null;
     try { me = await apiGet('/api/auth/me'); } catch (e) { me = null; }
     if (me && me.user) {
+      state.user = me.user;
       const link = $('#loginLink');
       link.textContent = 'Кабинет';
       link.href = 'lk/' + (ROLE_PAGE[me.user.role] || 'index.html');
+      syncSaveButton();
+      loadQuotes().catch((e) => {
+        $('#quoteListNote').textContent = e.message || 'Не удалось загрузить список КП';
+      });
     }
     try {
       const data = await apiGet('/api/catalog?limit=1');

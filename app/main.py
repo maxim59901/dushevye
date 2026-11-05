@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
 
 from .db import get_db, init_db
+from .quotes import QuoteIn, compose_quote, fetch_parts, normalize_quote, present_quote, render_quote_pdf
 from .security import (
     CSRF_HEADER,
     CSRF_SESSION_KEY,
@@ -524,6 +525,176 @@ def catalog_one(part_id: int, user=Depends(current_user)):
     if not row:
         raise HTTPException(status_code=404, detail="Позиция не найдена")
     return {"item": _part_public(row, show_price=show_price)}
+
+
+def _show_price(user) -> bool:
+    return user["role"] in PRICE_ROLES
+
+
+def _load_quote(conn, quote_id: int, user, *, with_items: bool):
+    row = conn.execute(
+        """SELECT q.*, u.name AS author_name, u.email AS author_email
+           FROM quotes q
+           JOIN users u ON u.id = q.user_id
+           WHERE q.id=? AND q.org_id=?""",
+        (quote_id, user["org_id"]),
+    ).fetchone()
+    if not row or (user["role"] not in PRIVILEGED and row["user_id"] != user["id"]):
+        raise HTTPException(status_code=404, detail="КП не найдено")
+    items = []
+    if with_items:
+        items = conn.execute(
+            "SELECT * FROM quote_items WHERE quote_id=? ORDER BY line_no, id",
+            (quote_id,),
+        ).fetchall()
+    return row, items
+
+
+@app.get("/api/quotes")
+def list_quotes(limit: int = 50, user=Depends(current_user)):
+    """Own drafts. Admin and owner see every quote in the org; other roles see their own."""
+    limit = max(1, min(limit, 200))
+    show_price = _show_price(user)
+    with get_db() as conn:
+        if user["role"] in PRIVILEGED:
+            rows = conn.execute(
+                """SELECT q.*, u.name AS author_name, u.email AS author_email,
+                          (SELECT COUNT(*) FROM quote_items i
+                           WHERE i.quote_id=q.id AND i.kind='hardware') AS hardware_count
+                   FROM quotes q
+                   JOIN users u ON u.id = q.user_id
+                   WHERE q.org_id=?
+                   ORDER BY q.id DESC
+                   LIMIT ?""",
+                (user["org_id"], limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """SELECT q.*, u.name AS author_name, u.email AS author_email,
+                          (SELECT COUNT(*) FROM quote_items i
+                           WHERE i.quote_id=q.id AND i.kind='hardware') AS hardware_count
+                   FROM quotes q
+                   JOIN users u ON u.id = q.user_id
+                   WHERE q.org_id=? AND q.user_id=?
+                   ORDER BY q.id DESC
+                   LIMIT ?""",
+                (user["org_id"], user["id"], limit),
+            ).fetchall()
+        items = [present_quote(row, [], show_price=show_price, include_lines=False) for row in rows]
+    return {
+        "items": items,
+        "show_price": show_price,
+        "can_see_org": user["role"] in PRIVILEGED,
+    }
+
+
+@app.get("/api/quotes/{quote_id}")
+def get_quote(quote_id: int, user=Depends(current_user)):
+    show_price = _show_price(user)
+    with get_db() as conn:
+        row, items = _load_quote(conn, quote_id, user, with_items=True)
+        quote = present_quote(row, items, show_price=show_price, include_lines=True)
+    return {"quote": quote}
+
+
+@app.get("/api/quotes/{quote_id}/pdf")
+def get_quote_pdf(quote_id: int, download: bool = False, user=Depends(current_user)):
+    show_price = _show_price(user)
+    with get_db() as conn:
+        row, items = _load_quote(conn, quote_id, user, with_items=True)
+        quote = present_quote(row, items, show_price=show_price, include_lines=True)
+    try:
+        pdf_bytes = render_quote_pdf(quote)
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=503,
+            detail="Не удалось собрать PDF: на сервере нет шрифта с кириллицей (fonts-dejavu-core)",
+        )
+    filename = f"kp-{quote_id}.pdf"
+    disposition = "attachment" if download else "inline"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'{disposition}; filename="{filename}"',
+            "Cache-Control": "private, no-store",
+        },
+    )
+
+
+@app.post("/api/quotes", status_code=201)
+def create_quote(body: QuoteIn, request: Request, user=Depends(current_user)):
+    require_csrf(request)
+    draft = normalize_quote(body)
+    parts = fetch_parts([item["id"] for item in draft["items"]])
+    built = compose_quote(draft, parts)
+    show_price = _show_price(user)
+    size = f"{draft['width_mm']}x{draft['height_mm']}"
+    if draft["fence_type"] in ("corner", "niche") and draft["depth_mm"]:
+        size += f"x{draft['depth_mm']}"
+    detail = (
+        f"{draft['fence_type']} {size} glass={draft['glass_thick_mm']}/{draft['glass_kind']}"
+        f" items={len(draft['items'])}"
+    )
+    with get_db() as conn:
+        cur = conn.execute(
+            """INSERT INTO quotes (
+                 org_id, user_id, status, fence_type, width_mm, height_mm, depth_mm,
+                 glass_thick_mm, glass_kind, glass_area_m2, glass_unit_price, glass_sum,
+                 hardware_sum, total, currency
+               ) VALUES (?,?, 'draft', ?,?,?,?,?,?,?,?,?,?,?, 'RUB')""",
+            (
+                user["org_id"],
+                user["id"],
+                draft["fence_type"],
+                draft["width_mm"],
+                draft["height_mm"],
+                draft["depth_mm"],
+                draft["glass_thick_mm"],
+                draft["glass_kind"],
+                built["glass_area_m2"],
+                built["glass_unit_price"],
+                built["glass_sum"],
+                built["hardware_sum"],
+                built["total"],
+            ),
+        )
+        quote_id = cur.lastrowid
+        conn.executemany(
+            """INSERT INTO quote_items (
+                 quote_id, line_no, kind, part_id, sku, name, qty, unit,
+                 unit_price, line_sum, source, group_title
+               ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+            [
+                (
+                    quote_id,
+                    line["line_no"],
+                    line["kind"],
+                    line["part_id"],
+                    line["sku"],
+                    line["name"],
+                    line["qty"],
+                    line["unit"],
+                    line["unit_price"],
+                    line["line_sum"],
+                    line["source"],
+                    line["group_title"],
+                )
+                for line in built["lines"]
+            ],
+        )
+        audit(
+            conn,
+            user["org_id"],
+            user["id"],
+            "quote_create",
+            target_type="quote",
+            target_id=quote_id,
+            detail=detail,
+        )
+        row, items = _load_quote(conn, quote_id, user, with_items=True)
+        quote = present_quote(row, items, show_price=show_price, include_lines=True)
+    return {"quote": quote}
 
 
 def _maybe_serve_public() -> None:
