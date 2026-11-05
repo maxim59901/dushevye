@@ -35,11 +35,20 @@
 </div>
 <script src="auth.js"></script>
 <script>
+function safeNext(path) {
+  if (!path || path.length > 200) return '';
+  if (!path.startsWith('/') || path.startsWith('//')) return '';
+  if (path.indexOf('..') !== -1 || path.indexOf('\\') !== -1 || path.indexOf('\n') !== -1) return '';
+  if (path === '/cfg.html' || path === '/index.html') return path;
+  if (/^\/lk\/[a-z0-9-]+\.html$/.test(path) && path !== '/lk/login.html') return path;
+  return '';
+}
 (async function(){
+  const next = safeNext(new URLSearchParams(location.search).get('next'));
   // already logged in?
   try {
     const me = await Auth.me();
-    if (me && me.user) { location.replace(Auth.cabinetUrl(me.user)); return; }
+    if (me && me.user) { location.replace(next || Auth.cabinetUrl(me.user)); return; }
   } catch(e) {}
 
   const form = document.getElementById('loginForm');
@@ -54,7 +63,7 @@
       const data = await Auth.login(email, password);
       ok.textContent = 'Вход выполнен…';
       ok.style.display='block';
-      location.replace(Auth.cabinetUrl(data.user));
+      location.replace(next || Auth.cabinetUrl(data.user));
     } catch (ex) {
       err.textContent = ex.message || 'Не удалось войти';
       err.style.display='block';

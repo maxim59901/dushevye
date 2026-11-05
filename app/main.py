@@ -10,6 +10,7 @@ from typing import Any, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -523,3 +524,22 @@ def catalog_one(part_id: int, user=Depends(current_user)):
     if not row:
         raise HTTPException(status_code=404, detail="Позиция не найдена")
     return {"item": _part_public(row, show_price=show_price)}
+
+
+def _maybe_serve_public() -> None:
+    """Same-origin static files for local checks (cfg.html + session cookie).
+
+    Off unless DUSHEVYE_SERVE_PUBLIC=1. Production nginx serves public/ itself
+    and proxies only /api/, so this mount stays disabled on the VDS.
+    """
+    flag = os.environ.get("DUSHEVYE_SERVE_PUBLIC", "").strip().lower()
+    if flag not in ("1", "true", "yes"):
+        return
+    raw = os.environ.get("DUSHEVYE_PUBLIC_DIR", "").strip()
+    public = Path(raw).expanduser() if raw else Path(__file__).resolve().parent.parent / "public"
+    if not public.is_dir():
+        raise RuntimeError(f"DUSHEVYE_SERVE_PUBLIC: нет каталога {public}")
+    app.mount("/", StaticFiles(directory=str(public), html=True), name="public")
+
+
+_maybe_serve_public()
