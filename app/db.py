@@ -146,6 +146,23 @@ CREATE INDEX IF NOT EXISTS idx_stock_balances_org ON stock_balances(org_id);
 CREATE INDEX IF NOT EXISTS idx_stock_movements_org_part ON stock_movements(org_id, part_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_stock_movements_project ON stock_movements(project_id);
 CREATE INDEX IF NOT EXISTS idx_stock_movements_actor ON stock_movements(org_id, actor_id);
+
+CREATE TABLE IF NOT EXISTS entity_versions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  org_id INTEGER NOT NULL REFERENCES organizations(id),
+  entity_type TEXT NOT NULL,
+  entity_id INTEGER NOT NULL,
+  actor_id INTEGER REFERENCES users(id),
+  action TEXT NOT NULL,
+  before_json TEXT,
+  after_json TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_versions_entity
+  ON entity_versions(org_id, entity_type, entity_id, id);
+CREATE INDEX IF NOT EXISTS idx_versions_actor
+  ON entity_versions(org_id, actor_id, id);
 """
 
 

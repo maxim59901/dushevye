@@ -299,6 +299,7 @@
                 '<br>Пароль показан в окне выше (один раз).';
               await Auth.refreshUsersTable();
               await Auth.refreshAudit();
+              await Auth.refreshVersions();
             } catch (ex) {
               Auth.showToast(ex.message);
             } finally {
@@ -311,6 +312,7 @@
 
       await Auth.refreshUsersTable();
       await Auth.refreshAudit();
+      await Auth.refreshVersions();
       return user;
     },
     async refreshUsersTable() {
@@ -347,6 +349,7 @@
               await api('/api/users/' + id + '/role', { method: 'PATCH', body: { role } });
               await Auth.refreshUsersTable();
               await Auth.refreshAudit();
+              await Auth.refreshVersions();
             } catch (ex) { Auth.showToast(ex.message); }
             finally { btn.disabled = false; }
           };
@@ -369,6 +372,57 @@
           return '<tr><td>' + escapeHtml(when) + '</td><td>' + escapeHtml(who) + '</td><td>' + escapeHtml(what) + '</td></tr>';
         }).join('') || '<tr><td colspan="3">Пока пусто</td></tr>';
       } catch (e) { console.warn(e); }
+    },
+    /**
+     * Fill a container with before/after rows from GET /api/versions.
+     * opts: { entity_type, entity_id, limit, showEntity, hintEl }
+     */
+    async mountVersions(el, opts) {
+      const o = opts || {};
+      if (!el) return;
+      const hint = o.hintEl || null;
+      el.innerHTML = '<p class="lead">Загрузка…</p>';
+      const qs = new URLSearchParams();
+      if (o.entity_type) qs.set('entity_type', o.entity_type);
+      if (o.entity_id != null && o.entity_id !== '') qs.set('entity_id', String(o.entity_id));
+      qs.set('limit', String(o.limit || 20));
+      try {
+        const data = await api('/api/versions?' + qs.toString());
+        if (hint) {
+          hint.textContent = data.can_see_org
+            ? 'Все версии организации. Отката нет — только просмотр.'
+            : 'Только версии, где автор — вы. Отката нет — только просмотр.';
+        }
+        const items = data.items || [];
+        if (!items.length) {
+          el.innerHTML = '<p class="lead">Пока пусто.</p>';
+          return;
+        }
+        const headEntity = o.showEntity ? '<th>Сущность</th>' : '';
+        el.innerHTML = '<div class="table-wrap"><table><thead><tr><th>Когда</th><th>Кто</th>' +
+          headEntity + '<th>Было → стало</th></tr></thead><tbody>' +
+          items.map((it) => {
+            const when = (it.created_at || '').replace('T', ' ').slice(0, 16);
+            const who = it.actor_name || it.actor_email || '—';
+            const kind = it.action_label
+              ? '<div style="color:var(--muted);font-size:12px">' + escapeHtml(it.action_label) + '</div>'
+              : '';
+            const ent = o.showEntity ? '<td>' + escapeHtml(it.entity_label || '') + '</td>' : '';
+            return '<tr><td>' + escapeHtml(when) + '</td><td>' + escapeHtml(who) + '</td>' +
+              ent + '<td>' + kind + escapeHtml(it.summary || '') + '</td></tr>';
+          }).join('') + '</tbody></table></div>';
+      } catch (e) {
+        el.innerHTML = '<p class="lead">' + escapeHtml(e.message || 'История недоступна') + '</p>';
+      }
+    },
+    async refreshVersions() {
+      const el = document.getElementById('versionRows');
+      if (!el) return;
+      await Auth.mountVersions(el, {
+        limit: 40,
+        showEntity: true,
+        hintEl: document.getElementById('versionsHint'),
+      });
     },
   };
 

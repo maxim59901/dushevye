@@ -322,8 +322,18 @@
         ' · срок ' + esc(p.due_date || '—') +
         (p.closed_at ? ' · закрыт ' + when(p.closed_at) : '') +
         ' · обновлён ' + when(p.updated_at) + '</p>' +
-        quoteBlock + controls;
+        quoteBlock + controls +
+        '<div id="historyBlock" style="margin-top:16px">' +
+        '<h3 style="margin:0 0 6px;font-size:15px">История</h3>' +
+        '<p class="lead" id="historyHint"></p>' +
+        '<div id="historyBody"></div></div>';
       box.hidden = false;
+      Auth.mountVersions(document.getElementById('historyBody'), {
+        entity_type: 'project',
+        entity_id: p.id,
+        hintEl: document.getElementById('historyHint'),
+        limit: 30,
+      });
       if (!keep) box.scrollIntoView({ block: 'nearest' });
       if (p.can_write) wireCard(p);
     } catch (e) {

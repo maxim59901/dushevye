@@ -166,7 +166,10 @@ def create_project(conn, user, body: ProjectCreateIn) -> dict[str, Any]:
             due,
         ),
     )
-    return load_project(conn, user, int(cur.lastrowid))
+    project_id = int(cur.lastrowid)
+    project = load_project(conn, user, project_id)
+    _write_project_version(conn, user, project_id, "project_create", None, _project_snap(project))
+    return project
 
 
 def set_project_status(conn, user, project_id: int, raw_status: str) -> tuple[dict[str, Any], Optional[str]]:
@@ -186,19 +189,58 @@ def set_project_status(conn, user, project_id: int, raw_status: str) -> tuple[di
             WHERE id=? AND org_id=?""",
         (code, project_id, user["org_id"]),
     )
-    return load_project(conn, user, project_id), previous
+    updated = load_project(conn, user, project_id)
+    _write_project_version(
+        conn,
+        user,
+        project_id,
+        "project_status_change",
+        _project_snap(current),
+        _project_snap(updated),
+    )
+    return updated, previous
 
 
 def bind_quote(conn, user, project_id: int, quote_id: Optional[int]) -> dict[str, Any]:
     """Attach a quote the caller can read, or clear the link when quote_id is None."""
-    load_project(conn, user, project_id, writable=True)
+    current = load_project(conn, user, project_id, writable=True)
     if quote_id is not None:
         _assert_quote_readable(conn, user, quote_id)
     conn.execute(
         "UPDATE projects SET quote_id=?, updated_at=datetime('now') WHERE id=? AND org_id=?",
         (quote_id, project_id, user["org_id"]),
     )
-    return load_project(conn, user, project_id)
+    updated = load_project(conn, user, project_id)
+    if current["quote_id"] != updated["quote_id"]:
+        _write_project_version(
+            conn,
+            user,
+            project_id,
+            "project_quote_link",
+            _project_snap(current),
+            _project_snap(updated),
+        )
+    return updated
+
+
+def _project_snap(project: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "customer_name": project.get("customer_name") or "",
+        "customer_phone": project.get("customer_phone") or "",
+        "customer_address": project.get("customer_address") or "",
+        "responsible_user_id": project.get("responsible_user_id"),
+        "responsible_name": project.get("responsible_name") or "",
+        "status": project.get("status"),
+        "quote_id": project.get("quote_id"),
+        "amount": project.get("amount"),
+        "due_date": project.get("due_date"),
+    }
+
+
+def _write_project_version(conn, user, project_id: int, action: str, before, after) -> None:
+    from .versions import record_version
+
+    record_version(conn, user["org_id"], user["id"], "project", project_id, action, before, after)
 
 
 def project_payload(row, user) -> dict[str, Any]:

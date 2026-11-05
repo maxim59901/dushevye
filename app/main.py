@@ -31,6 +31,7 @@ from .projects import (
 )
 from .quotes import QuoteIn, compose_quote, fetch_parts, normalize_quote, present_quote, render_quote_pdf
 from .stock import AUDIT_ACTION, StockMoveIn, apply_movement, list_stock
+from .versions import list_versions, record_version
 from .security import (
     CSRF_HEADER,
     CSRF_SESSION_KEY,
@@ -320,6 +321,16 @@ def patch_role(user_id: int, body: RolePatchIn, request: Request, user=Depends(r
             target_id=user_id,
             detail=f"{old} -> {role}",
         )
+        record_version(
+            conn,
+            user["org_id"],
+            user["id"],
+            "user",
+            user_id,
+            "change_role",
+            {"role": old, "email": target["email"], "name": target["name"] or ""},
+            {"role": role, "email": target["email"], "name": target["name"] or ""},
+        )
         row = conn.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
         return {"user": user_public(row)}
 
@@ -362,6 +373,27 @@ def get_audit(limit: int = 100, user=Depends(current_user)):
             }
         )
     return {"items": items}
+
+
+@app.get("/api/versions")
+def get_versions(
+    entity_type: Optional[str] = None,
+    entity_id: Optional[int] = None,
+    limit: int = 50,
+    user=Depends(current_user),
+):
+    """Before/after history. Admin and owner see the org; other roles see their own rows.
+
+    GET does not require a CSRF token. /api/audit is unchanged.
+    """
+    with get_db() as conn:
+        return list_versions(
+            conn,
+            user,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            limit=limit,
+        )
 
 
 @app.get("/api/meta/roles")
@@ -702,6 +734,26 @@ def create_quote(body: QuoteIn, request: Request, user=Depends(current_user)):
                 )
                 for line in built["lines"]
             ],
+        )
+        record_version(
+            conn,
+            user["org_id"],
+            user["id"],
+            "quote",
+            quote_id,
+            "quote_create",
+            None,
+            {
+                "status": "draft",
+                "fence_type": draft["fence_type"],
+                "width_mm": draft["width_mm"],
+                "height_mm": draft["height_mm"],
+                "depth_mm": draft["depth_mm"],
+                "glass_thick_mm": draft["glass_thick_mm"],
+                "glass_kind": draft["glass_kind"],
+                "hardware_count": len(draft["items"]),
+                "project_id": project_id,
+            },
         )
         if project_id is not None:
             bind_quote(conn, user, project_id, quote_id)

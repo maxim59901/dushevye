@@ -264,7 +264,18 @@ tr.just-saved{background:#FDF6F2}
     </div>
   </div>
 </section>
+<section class="quotes-panel no-print" id="quoteHistory" hidden>
+  <div class="panel">
+    <h2 id="quoteHistoryTitle">История</h2>
+    <p class="hint" id="quoteHistoryHint">Последние сохранения КП. Отката нет — только просмотр.</p>
+    <div class="table-wrap" id="quoteHistoryBody"></div>
+    <div class="actions" id="quoteHistoryAll" hidden>
+      <button class="btn ghost" type="button" id="quoteHistoryReset">Все КП</button>
+    </div>
+  </div>
+</section>
 <p class="foot">Душевые · проект Станок · черновик КП хранится в базе после входа, PDF со спецификацией собирается на сервере</p>
+<script src="lk/auth.js"></script>
 <script>
 (function(){
   // GLASS_RATES — ставки стекла (оценка площади × коэффициент). Это не DEMO hardware.
@@ -549,9 +560,30 @@ tr.just-saved{background:#FDF6F2}
         '<td>' + esc(quoteSize(q)) + '</td>' +
         '<td class="num">' + esc(q.hardware_count) + '</td>' +
         '<td class="num">' + esc(money(q.total)) + '</td>' +
-        '<td class="num quote-links">' + pdfAnchors(n) + '</td>' +
+        '<td class="num quote-links">' + pdfAnchors(n) +
+        ' <button type="button" class="mini" data-history="' + n + '">История</button></td>' +
         '</tr>';
     }).join('');
+  }
+  async function loadQuoteHistory(id) {
+    const panel = $('#quoteHistory');
+    if (!panel || !state.user || !window.Auth) return;
+    panel.hidden = false;
+    const title = $('#quoteHistoryTitle');
+    const reset = $('#quoteHistoryAll');
+    if (id) {
+      title.textContent = 'История КП №' + id;
+      reset.hidden = false;
+    } else {
+      title.textContent = 'История';
+      reset.hidden = true;
+    }
+    await Auth.mountVersions($('#quoteHistoryBody'), {
+      entity_type: 'quote',
+      entity_id: id || undefined,
+      hintEl: $('#quoteHistoryHint'),
+      limit: 20,
+    });
   }
   async function onSave(){
     if (!state.user) {
@@ -573,6 +605,7 @@ tr.just-saved{background:#FDF6F2}
       status.innerHTML = 'КП №' + n + ' сохранено' + linked + ' · итог ' + esc(money(q.total)) + '. ' + pdfAnchors(n);
       syncProjectBind();
       await loadQuotes();
+      await loadQuoteHistory(n);
     } catch (e) {
       status.classList.add('err');
       if (e.status === 401) {
@@ -916,7 +949,22 @@ tr.just-saved{background:#FDF6F2}
       loadQuotes().catch((e) => {
         $('#quoteListNote').textContent = e.message || 'Не удалось загрузить список КП';
       });
+      loadQuoteHistory().catch(() => {});
       loadProjects().catch(() => {});
+      const quoteList = $('#quoteList');
+      if (quoteList) {
+        quoteList.addEventListener('click', (ev) => {
+          const btn = ev.target.closest('[data-history]');
+          if (!btn) return;
+          const id = Number(btn.getAttribute('data-history'));
+          if (!id) return;
+          loadQuoteHistory(id).then(() => {
+            $('#quoteHistory').scrollIntoView({ block: 'nearest' });
+          }).catch(() => {});
+        });
+      }
+      const resetHistory = $('#quoteHistoryReset');
+      if (resetHistory) resetHistory.addEventListener('click', () => { loadQuoteHistory().catch(() => {}); });
     }
     try {
       const data = await apiGet('/api/catalog?limit=1');

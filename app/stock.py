@@ -164,6 +164,7 @@ def apply_movement(conn, user, kind: str, body: StockMoveIn) -> tuple[dict[str, 
         "SELECT * FROM stock_balances WHERE org_id=? AND part_id=?",
         (user["org_id"], body.part_id),
     ).fetchone()
+    before = _balance_snap(row) if row is not None else None
     on_hand = round_qty(row["qty_on_hand"]) if row else 0.0
     reserved = round_qty(row["qty_reserved"]) if row else 0.0
     min_qty = round_qty(row["min_qty"]) if row else 0.0
@@ -228,7 +229,33 @@ def apply_movement(conn, user, kind: str, body: StockMoveIn) -> tuple[dict[str, 
     ).fetchone()
     item = present_balance(updated, part)
     item["reservations"] = _reservation_lines(conn, user).get(body.part_id, [])
+    _write_stock_version(conn, user, kind, body.part_id, before, _balance_snap(updated, sku=item["sku"]))
     return item, int(cur.lastrowid), _movement_detail(item, qty, project_id, note)
+
+
+def _balance_snap(row, *, sku: Optional[str] = None) -> dict[str, Any]:
+    return {
+        "part_id": int(row["part_id"]),
+        "sku": str(sku if sku is not None else (row["sku"] or "")),
+        "qty_on_hand": round_qty(row["qty_on_hand"]),
+        "qty_reserved": round_qty(row["qty_reserved"]),
+        "min_qty": round_qty(row["min_qty"]),
+    }
+
+
+def _write_stock_version(conn, user, kind: str, part_id: int, before, after) -> None:
+    from .versions import record_version
+
+    record_version(
+        conn,
+        user["org_id"],
+        user["id"],
+        "stock",
+        part_id,
+        AUDIT_ACTION[kind],
+        before,
+        after,
+    )
 
 
 def present_balance(row, part) -> dict[str, Any]:
