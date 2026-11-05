@@ -53,6 +53,9 @@ td.sku{font-size:12px;font-weight:700;white-space:nowrap}
 .save-status a{color:var(--accent);font-weight:600}
 .save-status a+a,.quote-links a+a{margin-left:12px}
 .save-status.err{color:#9B1C1C}
+.project-field{margin-top:14px}
+.project-field select{margin-top:6px}
+.project-field .btn{margin-top:8px}
 .quotes-panel{max-width:1180px;margin:0 auto;padding:0 32px 8px}
 .quotes-panel .hint{margin:0 0 10px}
 tr.just-saved{background:#FDF6F2}
@@ -223,6 +226,14 @@ tr.just-saved{background:#FDF6F2}
       <span class="sum" id="kpTotal">0 ₽</span>
     </div>
     <div class="disclaimer" id="kpNote">Стекло — оценка по площади. Финальный расчёт после замера.</div>
+    <div class="field no-print project-field" id="projectField" hidden>
+      <label for="projectPick">Проект</label>
+      <select id="projectPick">
+        <option value="">Без проекта</option>
+      </select>
+      <span class="hint">Если выбрать проект, сохранённое КП привяжется к нему.</span>
+      <button class="btn ghost" type="button" id="bindProject" hidden>Привязать уже сохранённое КП</button>
+    </div>
     <div class="actions no-print">
       <button class="btn" type="button" id="saveQuote">Сохранить КП</button>
       <button class="btn ghost" type="button" onclick="window.print()">Печать черновика</button>
@@ -375,10 +386,10 @@ tr.just-saved{background:#FDF6F2}
     csrfToken = data.csrfToken;
     return csrfToken;
   }
-  async function apiPost(path, body, retried){
+  async function apiSend(method, path, body, retried){
     const token = await ensureCsrf(!!retried);
     const res = await fetch(path, {
-      method: 'POST',
+      method: method,
       credentials: 'same-origin',
       headers: {'Content-Type': 'application/json', 'X-CSRF-Token': token},
       body: JSON.stringify(body)
@@ -389,13 +400,16 @@ tr.just-saved{background:#FDF6F2}
       const msg = errorMessage(data, res.status);
       if (res.status === 403 && !retried && /csrf/i.test(msg)) {
         csrfToken = null;
-        return apiPost(path, body, true);
+        return apiSend(method, path, body, true);
       }
       const err = new Error(msg);
       err.status = res.status;
       throw err;
     }
     return data;
+  }
+  function apiPost(path, body){
+    return apiSend('POST', path, body);
   }
   function pdfAnchors(id){
     const n = Number(id);
@@ -425,7 +439,72 @@ tr.just-saved{background:#FDF6F2}
     };
     const needDepth = type === 'corner' || type === 'niche';
     if (needDepth || (depth >= 400 && depth <= 2000)) body.depth_mm = depth;
+    const projectId = selectedProjectId();
+    if (projectId) body.project_id = projectId;
     return body;
+  }
+  function selectedProjectId(){
+    const sel = $('#projectPick');
+    if (!sel) return 0;
+    const n = Number(sel.value);
+    return Number.isInteger(n) && n > 0 ? n : 0;
+  }
+  function syncProjectBind(){
+    const btn = $('#bindProject');
+    const field = $('#projectField');
+    if (!field) return;
+    if (btn) btn.hidden = !(state.user && state.lastSavedId && selectedProjectId());
+  }
+  async function loadProjects(){
+    const field = $('#projectField');
+    const sel = $('#projectPick');
+    if (!field || !sel) return;
+    if (!state.user) {
+      field.hidden = true;
+      return;
+    }
+    let data;
+    try {
+      data = await apiGet('/api/projects?limit=100');
+    } catch (e) {
+      field.hidden = true;
+      return;
+    }
+    if (!data.can_create) {
+      field.hidden = true;
+      return;
+    }
+    const current = sel.value;
+    const writable = (data.items || []).filter((p) => p.can_write);
+    sel.innerHTML = '<option value="">Без проекта</option>' + writable.map((p) => {
+      return '<option value="' + Number(p.id) + '">' +
+        esc(p.customer_name) + ' · ' + esc(p.status_label || '') + '</option>';
+    }).join('');
+    if (current) sel.value = current;
+    field.hidden = false;
+    syncProjectBind();
+  }
+  async function onBindProject(){
+    const status = $('#saveStatus');
+    const projectId = selectedProjectId();
+    if (!state.lastSavedId || !projectId) {
+      status.classList.add('err');
+      status.textContent = 'Сначала сохраните КП и выберите проект';
+      return;
+    }
+    const btn = $('#bindProject');
+    btn.disabled = true;
+    status.classList.remove('err');
+    status.textContent = 'Привязываю…';
+    try {
+      await apiSend('PATCH', '/api/projects/' + projectId + '/quote', {quote_id: state.lastSavedId});
+      status.textContent = 'КП №' + state.lastSavedId + ' привязано к проекту №' + projectId + '. ' + pdfAnchors(state.lastSavedId);
+    } catch (e) {
+      status.classList.add('err');
+      status.textContent = e.message || 'Не удалось привязать КП';
+    } finally {
+      btn.disabled = false;
+    }
   }
   function syncSaveButton(){
     const btn = $('#saveQuote');
@@ -485,11 +564,14 @@ tr.just-saved{background:#FDF6F2}
     status.classList.remove('err');
     status.textContent = 'Сохраняю…';
     try {
+      const projectId = selectedProjectId();
       const data = await apiPost('/api/quotes', draftPayload());
       const q = data.quote || {};
       const n = Number(q.id);
       state.lastSavedId = n;
-      status.innerHTML = 'КП №' + n + ' сохранено · итог ' + esc(money(q.total)) + '. ' + pdfAnchors(n);
+      const linked = projectId ? ' · проект №' + projectId : '';
+      status.innerHTML = 'КП №' + n + ' сохранено' + linked + ' · итог ' + esc(money(q.total)) + '. ' + pdfAnchors(n);
+      syncProjectBind();
       await loadQuotes();
     } catch (e) {
       status.classList.add('err');
@@ -817,6 +899,10 @@ tr.just-saved{background:#FDF6F2}
   async function boot(){
     bindPicker();
     $('#saveQuote').addEventListener('click', onSave);
+    const bindBtn = $('#bindProject');
+    if (bindBtn) bindBtn.addEventListener('click', onBindProject);
+    const projectPick = $('#projectPick');
+    if (projectPick) projectPick.addEventListener('change', syncProjectBind);
     syncSaveButton();
     render();
     let me = null;
@@ -830,6 +916,7 @@ tr.just-saved{background:#FDF6F2}
       loadQuotes().catch((e) => {
         $('#quoteListNote').textContent = e.message || 'Не удалось загрузить список КП';
       });
+      loadProjects().catch(() => {});
     }
     try {
       const data = await apiGet('/api/catalog?limit=1');

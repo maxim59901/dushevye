@@ -18,7 +18,7 @@ button,input,select,textarea{font:inherit}
 .side a.active{background:var(--accent);color:#fff}
 .side .foot{margin-top:auto;padding:12px 10px;font-size:12px;color:#8B9198}
 .main{display:flex;flex-direction:column;min-width:0}
-.top{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 24px;background:var(--white);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+.top{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 24px;background:var(--white);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5;flex-wrap:wrap}
 .top h1{margin:0;font-size:18px;letter-spacing:-.01em}
 .top .meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .badge{display:inline-flex;align-items:center;border-radius:999px;padding:4px 10px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}

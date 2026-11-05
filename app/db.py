@@ -85,6 +85,29 @@ CREATE TABLE IF NOT EXISTS quote_items (
 
 CREATE INDEX IF NOT EXISTS idx_quotes_org_user ON quotes(org_id, user_id);
 CREATE INDEX IF NOT EXISTS idx_quote_items_quote ON quote_items(quote_id);
+
+CREATE TABLE IF NOT EXISTS projects (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  org_id INTEGER NOT NULL REFERENCES organizations(id),
+  customer_name TEXT NOT NULL,
+  customer_phone TEXT NOT NULL DEFAULT '',
+  customer_address TEXT NOT NULL DEFAULT '',
+  responsible_user_id INTEGER REFERENCES users(id),
+  created_by INTEGER NOT NULL REFERENCES users(id),
+  status TEXT NOT NULL DEFAULT 'created',
+  quote_id INTEGER REFERENCES quotes(id) ON DELETE SET NULL,
+  amount REAL,
+  currency TEXT NOT NULL DEFAULT 'RUB',
+  due_date TEXT,
+  closed_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_projects_org_status ON projects(org_id, status);
+CREATE INDEX IF NOT EXISTS idx_projects_responsible ON projects(org_id, responsible_user_id);
+CREATE INDEX IF NOT EXISTS idx_projects_created_by ON projects(org_id, created_by);
+CREATE INDEX IF NOT EXISTS idx_projects_quote ON projects(quote_id);
 """
 
 

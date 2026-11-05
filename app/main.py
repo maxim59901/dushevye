@@ -15,6 +15,20 @@ from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
 
 from .db import get_db, init_db
+from .projects import (
+    ProjectCreateIn,
+    ProjectQuoteIn,
+    ProjectStatusIn,
+    STATUS_LABEL,
+    bind_quote,
+    create_project,
+    list_projects,
+    load_project,
+    normalize_customer_filter,
+    normalize_status_filter,
+    project_meta,
+    set_project_status,
+)
 from .quotes import QuoteIn, compose_quote, fetch_parts, normalize_quote, present_quote, render_quote_pdf
 from .security import (
     CSRF_HEADER,
@@ -636,7 +650,12 @@ def create_quote(body: QuoteIn, request: Request, user=Depends(current_user)):
         f"{draft['fence_type']} {size} glass={draft['glass_thick_mm']}/{draft['glass_kind']}"
         f" items={len(draft['items'])}"
     )
+    project_id = body.project_id
+    if project_id is not None and project_id < 1:
+        raise HTTPException(status_code=400, detail="Некорректный проект")
     with get_db() as conn:
+        if project_id is not None:
+            load_project(conn, user, project_id, writable=True)
         cur = conn.execute(
             """INSERT INTO quotes (
                  org_id, user_id, status, fence_type, width_mm, height_mm, depth_mm,
@@ -683,6 +702,9 @@ def create_quote(body: QuoteIn, request: Request, user=Depends(current_user)):
                 for line in built["lines"]
             ],
         )
+        if project_id is not None:
+            bind_quote(conn, user, project_id, quote_id)
+            detail += f" project={project_id}"
         audit(
             conn,
             user["org_id"],
@@ -695,6 +717,87 @@ def create_quote(body: QuoteIn, request: Request, user=Depends(current_user)):
         row, items = _load_quote(conn, quote_id, user, with_items=True)
         quote = present_quote(row, items, show_price=show_price, include_lines=True)
     return {"quote": quote}
+
+
+@app.get("/api/projects")
+def projects_list(
+    status: Optional[str] = None,
+    customer: Optional[str] = None,
+    limit: int = 100,
+    user=Depends(current_user),
+):
+    """Projects in the caller's scope. Admin, owner, and accountant see the org."""
+    limit = max(1, min(limit, 200))
+    status_code = normalize_status_filter(status)
+    customer_q = normalize_customer_filter(customer)
+    with get_db() as conn:
+        items = list_projects(
+            conn, user, status=status_code, customer=customer_q, limit=limit
+        )
+    return {"items": items, **project_meta(user)}
+
+
+@app.post("/api/projects", status_code=201)
+def projects_create(body: ProjectCreateIn, request: Request, user=Depends(current_user)):
+    require_csrf(request)
+    with get_db() as conn:
+        project = create_project(conn, user, body)
+        detail = project["customer_name"]
+        if project["quote_id"]:
+            detail += f" · КП {project['quote_id']}"
+        audit(
+            conn,
+            user["org_id"],
+            user["id"],
+            "project_create",
+            target_type="project",
+            target_id=project["id"],
+            detail=detail[:300],
+        )
+    return {"project": project}
+
+
+@app.get("/api/projects/{project_id}")
+def projects_get(project_id: int, user=Depends(current_user)):
+    with get_db() as conn:
+        project = load_project(conn, user, project_id)
+    return {"project": project, **project_meta(user)}
+
+
+@app.patch("/api/projects/{project_id}/status")
+def projects_status(
+    project_id: int,
+    body: ProjectStatusIn,
+    request: Request,
+    user=Depends(current_user),
+):
+    require_csrf(request)
+    with get_db() as conn:
+        project, previous = set_project_status(conn, user, project_id, body.status)
+        if previous is not None:
+            audit(
+                conn,
+                user["org_id"],
+                user["id"],
+                "project_status_change",
+                target_type="project",
+                target_id=project["id"],
+                detail=f"{STATUS_LABEL.get(previous, previous)} -> {project['status_label']}",
+            )
+    return {"project": project}
+
+
+@app.patch("/api/projects/{project_id}/quote")
+def projects_quote(
+    project_id: int,
+    body: ProjectQuoteIn,
+    request: Request,
+    user=Depends(current_user),
+):
+    require_csrf(request)
+    with get_db() as conn:
+        project = bind_quote(conn, user, project_id, body.quote_id)
+    return {"project": project}
 
 
 def _maybe_serve_public() -> None:

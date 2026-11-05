@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Проекты — ЛК Душевые</title>
+<link rel="stylesheet" href="lk.css"/>
+<style>
+.filters{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:14px}
+.filters .field{margin:0;min-width:160px;flex:1}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
+.table-wrap{overflow-x:auto}
+.table-wrap .btn{white-space:nowrap}
+.tag.muted{background:var(--soft);color:var(--muted)}
+.errnote{background:#FEE2E2;color:var(--bad);border-radius:12px;padding:10px 12px;font-size:13px;margin-top:10px}
+.quote-links a{color:var(--accent);font-weight:600}
+.quote-links a+a{margin-left:12px}
+@media (max-width:800px){
+  .form-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">ДУШЕВЫЕ · ЛК</div>
+    <div class="role-pill">Проекты</div>
+    <nav>
+      <a href="projects.html" class="active">Воронка</a>
+      <a href="#" id="backCabinet">← В кабинет</a>
+      <a href="catalog.html">Каталог фурнитуры</a>
+      <a href="../cfg.html">Конфигуратор КП</a>
+      <a href="index.html">Все роли</a>
+      <a href="../index.html">На витрину</a>
+    </nav>
+    <div class="foot">Создан → Просчёт → В работе → Чертёж → Фурнитура → Завершено → Архив.</div>
+  </aside>
+  <div class="main">
+    <div class="top">
+      <h1>Проекты</h1>
+      <div class="meta">
+        <span class="badge demo">Вход</span>
+        <span class="badge muted" id="countBadge">—</span>
+      </div>
+    </div>
+    <div class="content">
+      <p class="lead" id="scopeHint" style="color:var(--muted);margin:0 0 16px;font-size:14px">Загрузка…</p>
+      <div class="filters">
+        <div class="field">
+          <label for="filterStatus">Статус</label>
+          <select id="filterStatus"><option value="">Все</option></select>
+        </div>
+        <div class="field">
+          <label for="filterCustomer">Клиент</label>
+          <input type="text" id="filterCustomer" placeholder="имя или телефон"/>
+        </div>
+        <button class="btn" type="button" id="filterBtn">Показать</button>
+        <button class="btn ghost" type="button" id="resetBtn">Сбросить</button>
+      </div>
+      <div class="card" id="createCard" hidden>
+        <h2>Новый проект</h2>
+        <p class="lead">Статус при создании — «Создан». КП можно привязать в карточке или из конфигуратора.</p>
+        <form id="createForm">
+          <div class="form-grid">
+            <div class="field">
+              <label for="customerName">Клиент</label>
+              <input type="text" id="customerName" name="customer_name" required maxlength="200" placeholder="Имя клиента"/>
+            </div>
+            <div class="field">
+              <label for="customerPhone">Телефон</label>
+              <input type="tel" id="customerPhone" name="customer_phone" maxlength="40" placeholder="+7 900 000-00-00"/>
+            </div>
+            <div class="field">
+              <label for="customerAddress">Адрес</label>
+              <input type="text" id="customerAddress" name="customer_address" maxlength="400" placeholder="Город, улица, квартира"/>
+            </div>
+            <div class="field">
+              <label for="amount">Сумма, ₽</label>
+              <input type="number" id="amount" name="amount" min="0" step="0.01" placeholder="необязательно"/>
+            </div>
+            <div class="field">
+              <label for="dueDate">Срок</label>
+              <input type="date" id="dueDate" name="due_date"/>
+            </div>
+            <div class="field" id="responsibleField" hidden>
+              <label for="responsible">Ответственный</label>
+              <select id="responsible" name="responsible_user_id"></select>
+            </div>
+          </div>
+          <div class="row">
+            <button class="btn" type="submit" id="createBtn">Создать проект</button>
+          </div>
+          <div id="formError" class="errnote" hidden></div>
+        </form>
+      </div>
+      <div class="card" style="margin-top:14px">
+        <h2>Список</h2>
+        <p class="lead" id="listNote"></p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>№</th>
+                <th>Клиент</th>
+                <th>Статус</th>
+                <th>Ответственный</th>
+                <th class="num">Сумма</th>
+                <th>Срок</th>
+                <th>КП</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card" id="detail" style="margin-top:14px" hidden>
+        <h2 id="detailTitle">Карточка</h2>
+        <div id="detailBody"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="auth.js"></script>
+<script>
+(function () {
+  const SCOPE_HINT = {
+    org: 'Все проекты организации.',
+    org_read: 'Все проекты организации. Список только для чтения.',
+    manager: 'Проекты, где вы автор или ответственный.',
+    assigned: 'Проекты, где вы назначены ответственным.',
+  };
+  const TAG = {
+    created: '',
+    estimate: 'info',
+    in_work: 'warn',
+    drawing: 'info',
+    hardware: 'warn',
+    done: 'ok',
+    archive: 'muted',
+  };
+
+  const state = {
+    user: null,
+    statuses: [],
+    items: [],
+    canCreate: false,
+    openId: null,
+  };
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function money(v) {
+    if (v == null || v === '') return '—';
+    const n = Number(v);
+    if (!Number.isFinite(n)) return '—';
+    return n.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' ₽';
+  }
+  function when(v) {
+    return esc(String(v || '').replace('T', ' ').slice(0, 16));
+  }
+  function tag(code, label) {
+    const cls = TAG[code] ? ' ' + TAG[code] : '';
+    return '<span class="tag' + cls + '">' + esc(label || code || '') + '</span>';
+  }
+  function quoteHref(id) {
+    const n = Number(id);
+    if (!Number.isInteger(n) || n <= 0) return '';
+    return '/api/quotes/' + n + '/pdf';
+  }
+  function nextStatus(code) {
+    const idx = state.statuses.findIndex((st) => st.id === code);
+    if (idx < 0 || idx >= state.statuses.length - 1) return null;
+    return state.statuses[idx + 1];
+  }
+  function statusOptions(selected) {
+    return state.statuses.map((st) => {
+      const on = st.id === selected ? ' selected' : '';
+      return '<option value="' + esc(st.id) + '"' + on + '>' + esc(st.label) + '</option>';
+    }).join('');
+  }
+  function quoteCell(p) {
+    const href = quoteHref(p.quote_id);
+    if (!href) return '—';
+    const q = p.quote || {};
+    let extra = '';
+    if (q.readable) {
+      const bits = [q.fence_label || '', money(q.total)].filter(Boolean);
+      if (bits.length) extra = '<div style="font-size:12px;color:var(--muted)">' + esc(bits.join(' · ')) + '</div>';
+    }
+    return '<span class="quote-links"><a href="' + href + '" target="_blank" rel="noopener">КП №' + Number(p.quote_id) + '</a></span>' + extra;
+  }
+  function showFormError(msg) {
+    const el = document.getElementById('formError');
+    if (!msg) { el.hidden = true; el.textContent = ''; return; }
+    el.hidden = false;
+    el.textContent = msg;
+  }
+
+  function renderFilters() {
+    const sel = document.getElementById('filterStatus');
+    const current = sel.value;
+    sel.innerHTML = '<option value="">Все</option>' + state.statuses.map((st) =>
+      '<option value="' + esc(st.id) + '">' + esc(st.label) + '</option>'
+    ).join('');
+    if (current) sel.value = current;
+  }
+
+  function renderList() {
+    const rows = document.getElementById('rows');
+    document.getElementById('countBadge').textContent = String(state.items.length);
+    if (!state.items.length) {
+      rows.innerHTML = '<tr><td colspan="8">Проектов нет</td></tr>';
+      return;
+    }
+    rows.innerHTML = state.items.map((p) => {
+      const phone = p.customer_phone
+        ? '<div style="font-size:12px;color:var(--muted)">' + esc(p.customer_phone) + '</div>'
+        : '';
+      const nxt = p.can_write ? nextStatus(p.status) : null;
+      let actions = '<button class="btn ghost" type="button" data-open="' + p.id + '">Карточка</button>';
+      if (nxt) {
+        actions = '<button class="btn" type="button" data-next="' + p.id + '" data-status="' + esc(nxt.id) + '">→ ' + esc(nxt.label) + '</button> ' + actions;
+      }
+      return '<tr>' +
+        '<td>' + p.id + '</td>' +
+        '<td>' + esc(p.customer_name) + phone + '</td>' +
+        '<td>' + tag(p.status, p.status_label) + '</td>' +
+        '<td>' + esc(p.responsible_name || '—') + '</td>' +
+        '<td class="num">' + esc(money(p.amount)) + '</td>' +
+        '<td>' + esc(p.due_date || '—') + '</td>' +
+        '<td>' + quoteCell(p) + '</td>' +
+        '<td>' + actions + '</td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  async function loadList() {
+    const note = document.getElementById('listNote');
+    note.textContent = '';
+    const status = document.getElementById('filterStatus').value;
+    const customer = document.getElementById('filterCustomer').value.trim();
+    const qs = new URLSearchParams();
+    if (status) qs.set('status', status);
+    if (customer) qs.set('customer', customer);
+    qs.set('limit', '100');
+    try {
+      const data = await Auth.api('/api/projects?' + qs.toString());
+      state.statuses = data.statuses || state.statuses;
+      state.canCreate = !!data.can_create;
+      state.items = data.items || [];
+      document.getElementById('scopeHint').textContent = SCOPE_HINT[data.scope] || '';
+      document.getElementById('createCard').hidden = !state.canCreate;
+      renderFilters();
+      renderList();
+      if (state.openId) await openCard(state.openId, true);
+    } catch (e) {
+      note.textContent = e.message || 'Не удалось загрузить проекты';
+    }
+  }
+
+  function quoteSize(q) {
+    if (!q) return '';
+    if (q.fence_type === 'corner' || q.fence_type === 'niche') {
+      return (q.width_mm || '—') + '×' + (q.height_mm || '—') + '×' + (q.depth_mm == null ? '—' : q.depth_mm) + ' мм';
+    }
+    if (q.width_mm) return q.width_mm + '×' + (q.height_mm || '—') + ' мм';
+    return '';
+  }
+
+  async function openCard(id, keep) {
+    const box = document.getElementById('detail');
+    const body = document.getElementById('detailBody');
+    try {
+      const data = await Auth.api('/api/projects/' + id);
+      const p = data.project;
+      state.openId = p.id;
+      if (data.statuses) state.statuses = data.statuses;
+      document.getElementById('detailTitle').textContent = 'Проект №' + p.id + ' · ' + p.customer_name;
+      const href = quoteHref(p.quote_id);
+      let quoteBlock = '<p class="lead">КП не привязано.</p>';
+      if (href) {
+        const q = p.quote || {};
+        const bits = [];
+        if (q.readable) {
+          if (q.fence_label) bits.push(q.fence_label);
+          const size = quoteSize(q);
+          if (size) bits.push(size);
+          bits.push(money(q.total));
+        }
+        quoteBlock = '<p class="quote-links"><a href="' + href + '" target="_blank" rel="noopener">Открыть PDF КП №' + Number(p.quote_id) + '</a>' +
+          (bits.length ? ' · ' + esc(bits.join(' · ')) : '') + '</p>';
+        if (q.readable === false) {
+          quoteBlock += '<p class="lead">Состав КП открывается автору и админу или хозяину.</p>';
+        }
+      }
+      let controls = '';
+      if (p.can_write) {
+        controls =
+          '<div class="form-grid">' +
+          '<div class="field"><label for="cardStatus">Статус</label>' +
+          '<select id="cardStatus">' + statusOptions(p.status) + '</select></div>' +
+          '<div class="field"><label for="cardQuote">Привязать КП</label>' +
+          '<select id="cardQuote"><option value="">Загрузка…</option></select>' +
+          '<span class="hint">Список — ваши КП. Админ и хозяин видят КП организации.</span></div>' +
+          '</div>' +
+          '<div class="row">' +
+          '<button class="btn" type="button" id="cardStatusBtn">Сохранить статус</button>' +
+          '<button class="btn" type="button" id="cardBindBtn">Привязать КП</button>' +
+          (p.quote_id ? '<button class="btn ghost" type="button" id="cardUnbindBtn">Отвязать КП</button>' : '') +
+          '</div>';
+      }
+      body.innerHTML =
+        '<p class="lead">' + tag(p.status, p.status_label) +
+        ' · ответственный ' + esc(p.responsible_name || '—') +
+        ' · автор ' + esc(p.created_by_name || '—') + '</p>' +
+        '<p class="lead">' + esc(p.customer_phone || 'телефон не указан') +
+        ' · ' + esc(p.customer_address || 'адрес не указан') + '</p>' +
+        '<p class="lead">Сумма ' + esc(money(p.amount)) +
+        ' · срок ' + esc(p.due_date || '—') +
+        (p.closed_at ? ' · закрыт ' + when(p.closed_at) : '') +
+        ' · обновлён ' + when(p.updated_at) + '</p>' +
+        quoteBlock + controls;
+      box.hidden = false;
+      if (!keep) box.scrollIntoView({ block: 'nearest' });
+      if (p.can_write) wireCard(p);
+    } catch (e) {
+      if (!keep) {
+        body.innerHTML = '<p class="errnote">' + esc(e.message || 'Не удалось открыть проект') + '</p>';
+        box.hidden = false;
+      }
+    }
+  }
+
+  function wireCard(project) {
+    document.getElementById('cardStatusBtn').onclick = () => saveStatus(project.id, document.getElementById('cardStatus').value);
+    document.getElementById('cardBindBtn').onclick = () => {
+      const raw = document.getElementById('cardQuote').value;
+      const quoteId = Number(raw);
+      if (!Number.isInteger(quoteId) || quoteId <= 0) {
+        Auth.showToast('Выберите КП');
+        return;
+      }
+      bindQuote(project.id, quoteId);
+    };
+    const unbind = document.getElementById('cardUnbindBtn');
+    if (unbind) unbind.onclick = () => bindQuote(project.id, null);
+    Auth.api('/api/quotes?limit=100').then((data) => {
+      const sel = document.getElementById('cardQuote');
+      if (!sel) return;
+      const items = data.items || [];
+      const opts = ['<option value="">Выберите КП</option>'].concat(items.map((q) => {
+        const label = 'КП №' + q.id + (q.fence_label ? ' · ' + q.fence_label : '') + ' · ' + money(q.total);
+        const on = project.quote_id === q.id ? ' selected' : '';
+        return '<option value="' + q.id + '"' + on + '>' + esc(label) + '</option>';
+      }));
+      if (project.quote_id && !items.some((q) => q.id === project.quote_id)) {
+        opts.splice(1, 0, '<option value="' + project.quote_id + '" selected>КП №' + project.quote_id + '</option>');
+      }
+      sel.innerHTML = opts.join('');
+    }).catch((e) => {
+      const sel = document.getElementById('cardQuote');
+      if (sel) sel.innerHTML = '<option value="">' + esc(e.message || 'Список КП недоступен') + '</option>';
+    });
+  }
+
+  async function saveStatus(id, status) {
+    try {
+      await Auth.api('/api/projects/' + id + '/status', { method: 'PATCH', body: { status: status } });
+      Auth.showToast('Статус обновлён');
+      await loadList();
+    } catch (e) {
+      Auth.showToast(e.message || 'Не удалось сменить статус');
+    }
+  }
+
+  async function bindQuote(id, quoteId) {
+    try {
+      await Auth.api('/api/projects/' + id + '/quote', { method: 'PATCH', body: { quote_id: quoteId } });
+      Auth.showToast(quoteId ? 'КП привязано' : 'КП отвязано');
+      await loadList();
+    } catch (e) {
+      Auth.showToast(e.message || 'Не удалось привязать КП');
+    }
+  }
+
+  async function loadUsers(me) {
+    if (me.role !== 'admin' && me.role !== 'owner') return;
+    try {
+      const data = await Auth.api('/api/users');
+      const sel = document.getElementById('responsible');
+      sel.innerHTML = (data.users || []).map((u) => {
+        const on = u.id === me.id ? ' selected' : '';
+        const label = (u.name || u.email) + ' · ' + (Auth.ROLE_LABEL[u.role] || u.role);
+        return '<option value="' + u.id + '"' + on + '>' + esc(label) + '</option>';
+      }).join('');
+      document.getElementById('responsibleField').hidden = false;
+    } catch (e) {
+      document.getElementById('responsibleField').hidden = true;
+    }
+  }
+
+  document.getElementById('rows').addEventListener('click', (ev) => {
+    const open = ev.target.closest('[data-open]');
+    if (open) {
+      openCard(Number(open.getAttribute('data-open')));
+      return;
+    }
+    const next = ev.target.closest('[data-next]');
+    if (!next) return;
+    saveStatus(Number(next.getAttribute('data-next')), next.getAttribute('data-status'));
+  });
+
+  document.getElementById('filterBtn').onclick = () => loadList();
+  document.getElementById('resetBtn').onclick = () => {
+    document.getElementById('filterStatus').value = '';
+    document.getElementById('filterCustomer').value = '';
+    loadList();
+  };
+  document.getElementById('filterCustomer').addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') loadList();
+  });
+
+  document.getElementById('createForm').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    showFormError('');
+    const btn = document.getElementById('createBtn');
+    const body = {
+      customer_name: document.getElementById('customerName').value.trim(),
+      customer_phone: document.getElementById('customerPhone').value.trim(),
+      customer_address: document.getElementById('customerAddress').value.trim(),
+    };
+    const amountRaw = document.getElementById('amount').value;
+    if (amountRaw !== '') body.amount = Number(amountRaw);
+    const due = document.getElementById('dueDate').value;
+    if (due) body.due_date = due;
+    const responsibleField = document.getElementById('responsibleField');
+    if (!responsibleField.hidden) {
+      const rid = Number(document.getElementById('responsible').value);
+      if (Number.isInteger(rid) && rid > 0) body.responsible_user_id = rid;
+    }
+    btn.disabled = true;
+    try {
+      const res = await Auth.api('/api/projects', { method: 'POST', body: body });
+      document.getElementById('createForm').reset();
+      state.openId = res.project && res.project.id;
+      Auth.showToast('Проект создан');
+      await loadList();
+    } catch (e) {
+      showFormError(e.message || 'Не удалось создать проект');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    const user = await Auth.requireCabinet();
+    if (!user) return;
+    state.user = user;
+    const back = document.getElementById('backCabinet');
+    back.href = Auth.cabinetUrl(user);
+    back.textContent = '← ' + (Auth.ROLE_LABEL[user.role] || 'Кабинет');
+    await loadUsers(user);
+    await loadList();
+  });
+})();
+</script>
+</body>
+</html>
