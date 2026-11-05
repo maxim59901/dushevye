@@ -56,6 +56,10 @@ CREATE TABLE IF NOT EXISTS quotes (
   width_mm INTEGER NOT NULL,
   height_mm INTEGER NOT NULL,
   depth_mm INTEGER,
+  template_id TEXT,
+  depth2_mm INTEGER,
+  angle_deg INTEGER,
+  door_count INTEGER,
   glass_thick_mm INTEGER NOT NULL,
   glass_kind TEXT NOT NULL,
   glass_area_m2 REAL NOT NULL,
@@ -179,9 +183,26 @@ def connect(path: Path | None = None) -> sqlite3.Connection:
     return conn
 
 
+def _migrate_quotes(conn: sqlite3.Connection) -> None:
+    """Add template columns on databases created before the template seed."""
+    rows = conn.execute("PRAGMA table_info(quotes)").fetchall()
+    if not rows:
+        return
+    have = {row[1] for row in rows}
+    for name, ddl in (
+        ("template_id", "TEXT"),
+        ("depth2_mm", "INTEGER"),
+        ("angle_deg", "INTEGER"),
+        ("door_count", "INTEGER"),
+    ):
+        if name not in have:
+            conn.execute(f"ALTER TABLE quotes ADD COLUMN {name} {ddl}")
+
+
 def init_db(path: Path | None = None) -> None:
     with connect(path) as conn:
         conn.executescript(SCHEMA)
+        _migrate_quotes(conn)
         conn.commit()
 
 

@@ -14,6 +14,7 @@ from typing import Any, Optional
 
 from fastapi import HTTPException
 
+from .config_rules import template_label
 from .quotes import FENCE_LABEL, KIND_LABEL
 from .security import PRIVILEGED, ROLE_LABELS_RU
 
@@ -56,10 +57,14 @@ SUMMARY_FIELDS = {
         "due_date",
     ),
     "quote": (
+        "template_id",
         "fence_type",
         "width_mm",
         "height_mm",
         "depth_mm",
+        "depth2_mm",
+        "angle_deg",
+        "door_count",
         "glass_thick_mm",
         "glass_kind",
         "hardware_count",
@@ -79,9 +84,13 @@ FIELD_LABEL = {
     "amount": "Сумма",
     "due_date": "Срок",
     "fence_type": "Тип",
+    "template_id": "Шаблон",
     "width_mm": "Ширина, мм",
     "height_mm": "Высота, мм",
     "depth_mm": "Глубина, мм",
+    "depth2_mm": "Бок C, мм",
+    "angle_deg": "Угол, °",
+    "door_count": "Створки",
     "glass_thick_mm": "Стекло, мм",
     "glass_kind": "Стекло",
     "hardware_count": "Позиции",
@@ -99,6 +108,7 @@ _CREATE_SKIP = {
     "min_qty": (0, 0.0),
     "amount": (0, 0.0),
     "hardware_count": (0, 0.0),
+    "door_count": (1,),
 }
 
 
@@ -228,6 +238,8 @@ def _format_value(field: str, value: Any) -> str:
         return ROLE_LABELS_RU.get(str(value), str(value))
     if field == "fence_type":
         return FENCE_LABEL.get(str(value), str(value))
+    if field == "template_id":
+        return template_label(str(value)) or str(value)
     if field == "glass_kind":
         return KIND_LABEL.get(str(value), str(value))
     if field in ("quote_id", "project_id") and isinstance(value, int):

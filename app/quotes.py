@@ -15,15 +15,21 @@ from typing import Any, Optional
 from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
+from .config_rules import get_template, needed_dimension_ids, template_label, validate_config
+
 FENCE_LABEL = {
     "corner": "Угловая",
     "straight": "Прямая",
     "niche": "Ниша",
     "sliding": "Раздвижная",
     "accordion": "Гармошка",
+    "ushape": "П-образная",
+    "trapezoid": "Трапеция",
 }
 KIND_LABEL = {"clear": "прозрачное", "matte": "матовое"}
 DEPTH_TYPES = frozenset({"corner", "niche"})
+# Quotes saved before templates. New shapes go through template_id only.
+LEGACY_FENCE_TYPES = frozenset({"corner", "straight", "niche", "sliding", "accordion"})
 
 # Keep in sync with public/cfg.html GLASS_RATES.
 GLASS_RATES = {
@@ -35,6 +41,8 @@ GLASS_RATES = {
         "niche": 1.08,
         "sliding": 1.15,
         "accordion": 1.22,
+        "ushape": 1.18,
+        "trapezoid": 1.1,
     },
 }
 
@@ -66,9 +74,13 @@ class QuoteIn(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
     fence_type: str = ""
+    template_id: str = ""
     width_mm: int
     height_mm: int
     depth_mm: Optional[int] = None
+    depth2_mm: Optional[int] = None
+    angle_deg: Optional[int] = None
+    doors: Optional[int] = None
     glass_thick_mm: int
     glass_kind: str = ""
     items: list[QuoteItemIn] = Field(default_factory=list)
@@ -84,16 +96,25 @@ def round_area(n: float) -> float:
     return math.floor(float(n) * 10000 + 0.5) / 10000.0
 
 
-def area_sqm(fence_type: str, width_mm: int, height_mm: int, depth_mm: Optional[int]) -> float:
+def area_sqm(
+    fence_type: str,
+    width_mm: int,
+    height_mm: int,
+    depth_mm: Optional[int],
+    depth2_mm: Optional[int] = None,
+) -> float:
     wm = width_mm / 1000.0
     hm = height_mm / 1000.0
     dm = (depth_mm or 0) / 1000.0
-    if fence_type == "corner":
+    d2 = (depth2_mm or 0) / 1000.0
+    if fence_type in ("corner", "trapezoid"):
         return (wm + dm) * hm
     if fence_type == "niche":
         return (wm + 2 * dm) * hm * 0.55
     if fence_type == "accordion":
         return wm * hm * 1.15
+    if fence_type == "ushape":
+        return (dm + wm + d2) * hm
     return wm * hm
 
 
@@ -102,33 +123,12 @@ def _clip(value: Any, limit: int) -> str:
     return text[:limit]
 
 
-def normalize_quote(body: QuoteIn) -> dict[str, Any]:
-    fence = (body.fence_type or "").strip().lower()
-    if fence not in FENCE_LABEL:
-        raise HTTPException(status_code=400, detail="Неизвестный тип ограждения")
-    if body.width_mm < 400 or body.width_mm > 4000:
-        raise HTTPException(status_code=400, detail="Ширина от 400 до 4000 мм")
-    if body.height_mm < 400 or body.height_mm > 3000:
-        raise HTTPException(status_code=400, detail="Высота от 400 до 3000 мм")
-    if body.glass_thick_mm not in GLASS_RATES["per_sqm"]:
-        raise HTTPException(status_code=400, detail="Толщина стекла: 8 или 10 мм")
-    kind = (body.glass_kind or "").strip().lower()
-    if kind not in KIND_LABEL:
-        raise HTTPException(status_code=400, detail="Вид стекла: clear или matte")
-    depth = body.depth_mm
-    if fence in DEPTH_TYPES:
-        if depth is None:
-            raise HTTPException(status_code=400, detail="Для угловой и ниши нужна глубина")
-        if depth < 400 or depth > 2000:
-            raise HTTPException(status_code=400, detail="Глубина от 400 до 2000 мм")
-    elif depth is not None and (depth < 400 or depth > 2000):
-        raise HTTPException(status_code=400, detail="Глубина от 400 до 2000 мм")
-    if len(body.items) > 80:
+def _merge_items(items: list[QuoteItemIn]) -> list[dict[str, int]]:
+    if len(items) > 80:
         raise HTTPException(status_code=400, detail="Не больше 80 позиций фурнитуры")
-
     merged: list[dict[str, int]] = []
     index: dict[int, int] = {}
-    for item in body.items:
+    for item in items:
         if item.id < 1:
             raise HTTPException(status_code=400, detail="Некорректная позиция каталога")
         if item.qty < 1 or item.qty > 9999:
@@ -141,15 +141,109 @@ def normalize_quote(body: QuoteIn) -> dict[str, Any]:
         else:
             index[item.id] = len(merged)
             merged.append({"id": item.id, "qty": item.qty})
+    return merged
+
+
+def _glass_kind(raw: str) -> str:
+    kind = (raw or "").strip().lower()
+    if kind not in KIND_LABEL:
+        raise HTTPException(status_code=400, detail="Вид стекла: clear или matte")
+    return kind
+
+
+def normalize_quote(body: QuoteIn) -> dict[str, Any]:
+    template_id = (body.template_id or "").strip()
+    if template_id:
+        return _normalize_templated(body, template_id)
+    fence = (body.fence_type or "").strip().lower()
+    if fence not in LEGACY_FENCE_TYPES:
+        raise HTTPException(status_code=400, detail="Неизвестный тип ограждения")
+    if body.width_mm < 400 or body.width_mm > 4000:
+        raise HTTPException(status_code=400, detail="Ширина от 400 до 4000 мм")
+    if body.height_mm < 400 or body.height_mm > 3000:
+        raise HTTPException(status_code=400, detail="Высота от 400 до 3000 мм")
+    if body.glass_thick_mm not in GLASS_RATES["per_sqm"]:
+        raise HTTPException(status_code=400, detail="Толщина стекла: 8 или 10 мм")
+    kind = _glass_kind(body.glass_kind)
+    depth = body.depth_mm
+    if fence in DEPTH_TYPES:
+        if depth is None:
+            raise HTTPException(status_code=400, detail="Для угловой и ниши нужна глубина")
+        if depth < 400 or depth > 2000:
+            raise HTTPException(status_code=400, detail="Глубина от 400 до 2000 мм")
+    elif depth is not None and (depth < 400 or depth > 2000):
+        raise HTTPException(status_code=400, detail="Глубина от 400 до 2000 мм")
     return {
         "fence_type": fence,
+        "template_id": None,
         "width_mm": body.width_mm,
         "height_mm": body.height_mm,
         "depth_mm": depth,
+        "depth2_mm": None,
+        "angle_deg": None,
+        "door_count": None,
+        "doors": None,
         "glass_thick_mm": body.glass_thick_mm,
         "glass_kind": kind,
-        "items": merged,
+        "items": _merge_items(body.items),
     }
+
+
+def _normalize_templated(body: QuoteIn, template_id: str) -> dict[str, Any]:
+    template = get_template(template_id)
+    if template is None:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "ok": False,
+                "template_id": template_id,
+                "errors": [{"code": "template_id", "message": "Неизвестный шаблон конструкции."}],
+                "warnings": [],
+            },
+        )
+    kind = _glass_kind(body.glass_kind)
+    needed = needed_dimension_ids(template)
+    choices = template.get("door_choices") or ()
+    door_count = int(body.doors if body.doors is not None else choices[0]) if choices else None
+    return {
+        "fence_type": template["fence_type"],
+        "template_id": template["id"],
+        "width_mm": body.width_mm,
+        "height_mm": body.height_mm,
+        "depth_mm": body.depth_mm if "depth_mm" in needed else None,
+        "depth2_mm": body.depth2_mm if "depth2_mm" in needed else None,
+        "angle_deg": body.angle_deg if "angle_deg" in needed else None,
+        "door_count": door_count,
+        "doors": door_count,
+        "glass_thick_mm": body.glass_thick_mm,
+        "glass_kind": kind,
+        "items": _merge_items(body.items),
+    }
+
+
+def validation_error(result: dict[str, Any]) -> HTTPException:
+    return HTTPException(status_code=400, detail=result)
+
+
+def quote_is_valid(draft: dict[str, Any], parts: list[dict[str, Any]]) -> dict[str, Any]:
+    """Full template check. Empty parts still warn about missing hinges."""
+    result = validate_config(draft, parts)
+    if draft.get("template_id") and result["ok"]:
+        thick = draft["glass_thick_mm"]
+        if thick not in GLASS_RATES["per_sqm"]:
+            result = {
+                "ok": False,
+                "template_id": draft["template_id"],
+                "errors": result["errors"]
+                + [
+                    {
+                        "code": "glass_thickness",
+                        "message": f"Для толщины {thick} мм нет ставки стекла, сохранить КП нельзя.",
+                    }
+                ],
+                "warnings": result["warnings"],
+            }
+    return result
 
 
 def catalog_db_path() -> Path:
@@ -167,7 +261,8 @@ def fetch_parts(ids: list[int]) -> dict[int, sqlite3.Row]:
     conn.row_factory = sqlite3.Row
     try:
         rows = conn.execute(
-            f"""SELECT p.id, p.sku, p.name, p.price, p.source, g.title_ru AS group_title
+            f"""SELECT p.id, p.sku, p.name, p.price, p.source, p.group_id,
+                       g.title_ru AS group_title
                 FROM parts p
                 LEFT JOIN part_groups g ON g.id = p.group_id
                 WHERE p.id IN ({placeholders})""",
@@ -183,8 +278,32 @@ def fetch_parts(ids: list[int]) -> dict[int, sqlite3.Row]:
     return found
 
 
+def parts_for_rules(rows: dict[int, sqlite3.Row], items: list[dict[str, int]]) -> list[dict[str, Any]]:
+    prepared: list[dict[str, Any]] = []
+    for item in items:
+        row = rows[item["id"]]
+        keys = row.keys()
+        group_id = row["group_id"] if "group_id" in keys else ""
+        prepared.append(
+            {
+                "id": int(row["id"]),
+                "sku": row["sku"] or "",
+                "name": row["name"] or "",
+                "group_id": group_id or "",
+                "qty": int(item["qty"]),
+            }
+        )
+    return prepared
+
+
 def compose_quote(draft: dict[str, Any], parts: dict[int, sqlite3.Row]) -> dict[str, Any]:
-    area = area_sqm(draft["fence_type"], draft["width_mm"], draft["height_mm"], draft["depth_mm"])
+    area = area_sqm(
+        draft["fence_type"],
+        draft["width_mm"],
+        draft["height_mm"],
+        draft.get("depth_mm"),
+        draft.get("depth2_mm"),
+    )
     unit = (
         GLASS_RATES["per_sqm"][draft["glass_thick_mm"]]
         * GLASS_RATES["kind_mult"][draft["glass_kind"]]
@@ -294,6 +413,7 @@ def present_quote(quote: Any, items: list[Any], *, show_price: bool, include_lin
             )
     quote_id = int(_cell(quote, "id"))
     fence = _cell(quote, "fence_type") or ""
+    template_id = _cell(quote, "template_id") or ""
     kind = _cell(quote, "glass_kind") or ""
     glass_sum = round_money(float(_cell(quote, "glass_sum") or 0))
     total = round_money(float(_cell(quote, "total") or 0)) if show_price else glass_sum
@@ -301,10 +421,14 @@ def present_quote(quote: Any, items: list[Any], *, show_price: bool, include_lin
         "id": quote_id,
         "status": _cell(quote, "status") or "draft",
         "fence_type": fence,
-        "fence_label": FENCE_LABEL.get(fence, fence),
+        "fence_label": template_label(template_id) or FENCE_LABEL.get(fence, fence),
+        "template_id": template_id or None,
         "width_mm": _cell(quote, "width_mm"),
         "height_mm": _cell(quote, "height_mm"),
         "depth_mm": _cell(quote, "depth_mm"),
+        "depth2_mm": _cell(quote, "depth2_mm"),
+        "angle_deg": _cell(quote, "angle_deg"),
+        "door_count": _cell(quote, "door_count"),
         "glass_thick_mm": _cell(quote, "glass_thick_mm"),
         "glass_kind": kind,
         "glass_label": KIND_LABEL.get(kind, kind),
@@ -355,9 +479,19 @@ def _format_money(value: Any) -> str:
 
 
 def _size_text(quote: dict[str, Any]) -> str:
-    if quote["fence_type"] in DEPTH_TYPES:
-        return f"{quote['width_mm']} × {quote['height_mm']} × {quote['depth_mm']} мм"
-    return f"{quote['width_mm']} × {quote['height_mm']} мм"
+    if quote.get("fence_type") == "ushape" and quote.get("depth_mm") and quote.get("depth2_mm"):
+        text = (
+            f"{quote['depth_mm']} × {quote['width_mm']} × {quote['depth2_mm']} × {quote['height_mm']} мм"
+        )
+    elif quote.get("depth_mm"):
+        text = f"{quote['width_mm']} × {quote['height_mm']} × {quote['depth_mm']} мм"
+    else:
+        text = f"{quote['width_mm']} × {quote['height_mm']} мм"
+    if quote.get("angle_deg"):
+        text += f", угол {quote['angle_deg']}°"
+    if quote.get("door_count") == 2:
+        text += ", две створки"
+    return text
 
 
 def _font_pair() -> tuple[Path, Path]:
