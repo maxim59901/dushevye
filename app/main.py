@@ -15,25 +15,36 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .db import get_db, init_db
 from .security import (
+    CSRF_HEADER,
+    CSRF_SESSION_KEY,
     PRIVILEGED,
     ROLE_LABELS_RU,
     ROLE_PAGE,
     ROLES,
+    check_login_rate_limit,
+    clear_login_rate,
+    csrf_ok,
     generate_password,
     hash_password,
+    login_rate_key,
+    new_csrf_token,
     verify_password,
 )
 
 SECRET = os.environ.get("DUSHEVYE_SESSION_SECRET") or secrets.token_hex(32)
 COOKIE_NAME = "dushevye_session"
+# Secure flag: only when DUSHEVYE_COOKIE_SECURE=1/true/yes.
+# Site is still served over plain HTTP by IP; enabling Secure would break login until HTTPS.
+# SessionMiddleware always sets HttpOnly; we always use SameSite=Strict.
+COOKIE_SECURE = os.environ.get("DUSHEVYE_COOKIE_SECURE", "").strip().lower() in ("1", "true", "yes")
 
 app = FastAPI(title="Dushevye Auth API", version="0.1.0", docs_url=None, redoc_url=None)
 app.add_middleware(
     SessionMiddleware,
     secret_key=SECRET,
     session_cookie=COOKIE_NAME,
-    same_site="lax",
-    https_only=False,
+    same_site="strict",
+    https_only=COOKIE_SECURE,
     max_age=60 * 60 * 24 * 14,
 )
 
@@ -85,6 +96,31 @@ def require_privileged(user=Depends(current_user)):
     return user
 
 
+def client_ip(request: Request) -> str:
+    xff = (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
+    if xff:
+        return xff
+    if request.client and request.client.host:
+        return request.client.host
+    return "unknown"
+
+
+def ensure_csrf_token(request: Request) -> str:
+    token = request.session.get(CSRF_SESSION_KEY)
+    if not token:
+        token = new_csrf_token()
+        request.session[CSRF_SESSION_KEY] = token
+    return token
+
+
+def require_csrf(request: Request) -> None:
+    """Reject mutating requests without a matching session CSRF token (403)."""
+    expected = request.session.get(CSRF_SESSION_KEY)
+    provided = request.headers.get(CSRF_HEADER) or request.headers.get("x-csrf-token")
+    if not csrf_ok(expected, provided):
+        raise HTTPException(status_code=403, detail="CSRF token missing or invalid")
+
+
 class LoginIn(BaseModel):
     email: str
     password: str
@@ -110,30 +146,57 @@ def health():
     return {"ok": True, "service": "dushevye-auth"}
 
 
+@app.get("/api/auth/csrf")
+def get_csrf(request: Request):
+    """Issue / refresh CSRF token bound to the session cookie."""
+    token = ensure_csrf_token(request)
+    return {"csrfToken": token}
+
+
 @app.post("/api/auth/login")
 def login(body: LoginIn, request: Request):
+    require_csrf(request)
     email = body.email.strip().lower()
+    key = login_rate_key(client_ip(request), email)
+    try:
+        check_login_rate_limit(key)
+    except ValueError:
+        raise HTTPException(
+            status_code=429,
+            detail="Слишком много попыток входа. Подождите 15 минут.",
+        )
     with get_db() as conn:
         row = conn.execute(
             "SELECT * FROM users WHERE lower(email)=? AND is_active=1", (email,)
         ).fetchone()
         if not row or not verify_password(body.password, row["password_hash"]):
             raise HTTPException(status_code=401, detail="Неверный email или пароль")
+        # Keep existing CSRF token across login so the SPA does not need a second fetch.
+        csrf = request.session.get(CSRF_SESSION_KEY)
         request.session.clear()
+        if csrf:
+            request.session[CSRF_SESSION_KEY] = csrf
+        else:
+            ensure_csrf_token(request)
         request.session["user_id"] = row["id"]
         request.session["org_id"] = row["org_id"]
         audit(conn, row["org_id"], row["id"], "login", detail=email)
+        clear_login_rate(key)
         return {"user": user_public(row)}
 
 
 @app.post("/api/auth/logout")
 def logout(request: Request):
+    require_csrf(request)
     uid = request.session.get("user_id")
     org_id = request.session.get("org_id")
     if uid and org_id:
         with get_db() as conn:
             audit(conn, org_id, uid, "logout")
+    csrf = request.session.get(CSRF_SESSION_KEY)
     request.session.clear()
+    if csrf:
+        request.session[CSRF_SESSION_KEY] = csrf
     return {"ok": True}
 
 
@@ -144,6 +207,7 @@ def me(user=Depends(current_user)):
 
 @app.post("/api/auth/change-password")
 def change_password(body: ChangePasswordIn, request: Request, user=Depends(current_user)):
+    require_csrf(request)
     if not verify_password(body.current_password, user["password_hash"]):
         raise HTTPException(status_code=400, detail="Текущий пароль неверный")
     if len(body.new_password) < 8:
@@ -167,7 +231,8 @@ def list_users(user=Depends(require_privileged)):
 
 
 @app.post("/api/users", status_code=201)
-def invite_user(body: InviteIn, user=Depends(require_privileged)):
+def invite_user(body: InviteIn, request: Request, user=Depends(require_privileged)):
+    require_csrf(request)
     role = body.role.strip().lower()
     if role not in ROLES:
         raise HTTPException(status_code=400, detail=f"Неизвестная роль. Допустимо: {', '.join(ROLES)}")
@@ -210,7 +275,8 @@ def invite_user(body: InviteIn, user=Depends(require_privileged)):
 
 
 @app.patch("/api/users/{user_id}/role")
-def patch_role(user_id: int, body: RolePatchIn, user=Depends(require_privileged)):
+def patch_role(user_id: int, body: RolePatchIn, request: Request, user=Depends(require_privileged)):
+    require_csrf(request)
     role = body.role.strip().lower()
     if role not in ROLES:
         raise HTTPException(status_code=400, detail="Неизвестная роль")

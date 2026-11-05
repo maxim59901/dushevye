@@ -4,7 +4,7 @@
 
 | Файл | Назначение |
 |---|---|
-| `nginx-dushevye.conf` | Корень сайта `/var/www/dushevye/public`, `/api/` проксируется на `127.0.0.1:8088` |
+| `nginx-dushevye.conf` | Корень сайта `/var/www/dushevye/public`, `/api/` на `127.0.0.1:8088`, заголовки CSP |
 | `dushevye-api.service` | systemd. Секрет сессии читается из `/etc/dushevye/api.env` |
 | `install-on-vds.sh` | Запускается **на сервере** из распакованного payload: рядом должны быть `public/`, `app/`, `data/` |
 | `deploy-vds.py` | Заливает `vds-payload.tgz` (лежит рядом со скриптом) по SSH |

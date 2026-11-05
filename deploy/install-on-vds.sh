@@ -22,12 +22,24 @@ mkdir -p "$PUB/media"
 if [[ -d "$BASE/public/media" ]]; then
   cp -a "$BASE/public/media/." "$PUB/media/"
 fi
-# catalog seed db/json
+# catalog seed db/json — never overwrite a larger/newer remote DB with a smaller payload
 mkdir -p "$DATA"
 if [[ -f "$BASE/data/catalog/catalog.db" ]]; then
-  cp -a "$BASE/data/catalog/catalog.db" "$DATA/catalog.db"
-  cp -a "$BASE/data/catalog/parts.json" "$DATA/parts.json" 2>/dev/null || true
-  cp -a "$BASE/data/catalog/import-report.json" "$DATA/import-report.json" 2>/dev/null || true
+  LOCAL_SZ=$(stat -c%s "$BASE/data/catalog/catalog.db" 2>/dev/null || echo 0)
+  REMOTE_SZ=0
+  if [[ -f "$DATA/catalog.db" ]]; then
+    REMOTE_SZ=$(stat -c%s "$DATA/catalog.db" 2>/dev/null || echo 0)
+  fi
+  if [[ "$LOCAL_SZ" -gt "$REMOTE_SZ" ]]; then
+    echo "catalog.db: installing payload ($LOCAL_SZ > remote $REMOTE_SZ)"
+    cp -a "$BASE/data/catalog/catalog.db" "$DATA/catalog.db"
+    cp -a "$BASE/data/catalog/parts.json" "$DATA/parts.json" 2>/dev/null || true
+    cp -a "$BASE/data/catalog/import-report.json" "$DATA/import-report.json" 2>/dev/null || true
+  else
+    echo "catalog.db: keeping remote ($REMOTE_SZ >= payload $LOCAL_SZ)"
+  fi
+elif [[ ! -f "$DATA/catalog.db" ]]; then
+  echo "catalog.db: none in payload and none on disk"
 fi
 chown -R www-data:www-data "$PUB/media" 2>/dev/null || true
 cp -a "$BASE/README.md" "$SITE/README.md" 2>/dev/null || true
@@ -65,6 +77,8 @@ if [[ ! -f /etc/dushevye/api.env ]]; then
 DUSHEVYE_SESSION_SECRET=$SECRET
 DUSHEVYE_DB=$DATA/app.db
 DUSHEVYE_CATALOG_DB=$DATA/catalog.db
+# Set to 1 after HTTPS is enabled (Secure session cookie). Leave 0 on HTTP-by-IP.
+DUSHEVYE_COOKIE_SECURE=0
 ENV
   chmod 600 /etc/dushevye/api.env
 fi

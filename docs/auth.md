@@ -23,7 +23,10 @@
 ## Технически (коротко)
 - API на FastAPI + SQLite: `/api/auth/*`, `/api/users`, `/api/audit`
 - База: `/var/www/dushevye/data/app.db` (не в public)
-- Сессия: подписанная cookie `dushevye_session`
+- Сессия: подписанная cookie `dushevye_session` (HttpOnly, SameSite=Strict). Secure включается только при `DUSHEVYE_COOKIE_SECURE=1` после HTTPS
+- CSRF: `GET /api/auth/csrf`, затем заголовок `X-CSRF-Token` на login, logout, смену пароля, приглашение и смену роли
+- Неудачный вход: не больше 5 попыток за 15 минут с одного IP и email, дальше ответ 429
+- Временный пароль приглашения показывается один раз в модалке, не через `alert()`
 - Сервис systemd: `dushevye-api`
 - Nginx проксирует `/api/` на приложение
 - Стартовый пароль Максима один раз пишется в `/root/dushevye-initial-admin.txt` (chmod 600) при seed
