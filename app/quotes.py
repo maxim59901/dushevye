@@ -1,8 +1,9 @@
 """Quote drafts: glass estimate, catalog hardware snapshot, PDF.
 
-Glass rates and the area formula match public/cfg.html (GLASS_RATES / areaSqm).
-Change them together. Hardware prices are read from the catalog on the server;
-the client cannot submit a price.
+Glass rates and the area formula live only here. The browser asks
+POST /api/config/estimate and receives the computed numbers, not this table.
+Hardware prices are read from the catalog on the server; the client cannot
+submit a price.
 """
 from __future__ import annotations
 
@@ -32,7 +33,7 @@ DEPTH_TYPES = frozenset({"corner", "niche"})
 # Quotes saved before templates. New shapes go through template_id only.
 LEGACY_FENCE_TYPES = frozenset({"corner", "straight", "niche", "sliding", "accordion"})
 
-# Keep in sync with public/cfg.html GLASS_RATES.
+# Server-only. Do not copy this table into public/cfg.html or an API response.
 GLASS_RATES = {
     "per_sqm": {8: 4200.0, 10: 5100.0},
     "kind_mult": {"clear": 1.0, "matte": 1.18},
@@ -86,6 +87,15 @@ class QuoteIn(BaseModel):
     glass_kind: str = ""
     items: list[QuoteItemIn] = Field(default_factory=list)
     project_id: Optional[int] = None
+
+
+def glass_priced(draft: dict[str, Any]) -> bool:
+    """True when this draft has a server rate. Does not return the rate table."""
+    return (
+        draft.get("glass_thick_mm") in GLASS_RATES["per_sqm"]
+        and draft.get("glass_kind") in GLASS_RATES["kind_mult"]
+        and draft.get("fence_type") in GLASS_RATES["type_factor"]
+    )
 
 
 def round_money(n: float) -> float:
@@ -387,7 +397,52 @@ def _money_out(value: Any, *, visible: bool) -> Optional[float]:
     return round_money(float(value))
 
 
-def present_quote(quote: Any, items: list[Any], *, show_price: bool, include_lines: bool) -> dict[str, Any]:
+def public_estimate(built: dict[str, Any], *, show_price: bool) -> dict[str, Any]:
+    """Computed quote figures only. Rate tables and area coefficients stay here."""
+    lines_out: list[dict[str, Any]] = []
+    for line in built["lines"]:
+        hardware = line["kind"] == "hardware"
+        visible = show_price or not hardware
+        qty_raw = float(line["qty"] or 0)
+        if line["kind"] == "glass":
+            qty_out: Any = round_area(qty_raw)
+        elif abs(qty_raw - round(qty_raw)) < 1e-6:
+            qty_out = int(round(qty_raw))
+        else:
+            qty_out = qty_raw
+        lines_out.append(
+            {
+                "kind": line["kind"],
+                "part_id": line["part_id"],
+                "sku": line["sku"] or None,
+                "name": line["name"],
+                "qty": qty_out,
+                "unit": line["unit"],
+                "unit_price": _money_out(line["unit_price"], visible=visible),
+                "line_sum": _money_out(line["line_sum"], visible=visible),
+            }
+        )
+    glass_sum = round_money(built["glass_sum"])
+    return {
+        "ok": True,
+        "glass_area_m2": round_area(built["glass_area_m2"]),
+        "glass_unit_price": round_money(built["glass_unit_price"]),
+        "glass_sum": glass_sum,
+        "hardware_sum": _money_out(built["hardware_sum"], visible=show_price),
+        "total": round_money(built["total"]) if show_price else glass_sum,
+        "show_price": show_price,
+        "lines": lines_out,
+    }
+
+
+def present_quote(
+    quote: Any,
+    items: list[Any],
+    *,
+    show_price: bool,
+    include_lines: bool,
+    allow_pdf: bool = True,
+) -> dict[str, Any]:
     item_list = list(items or [])
     if item_list:
         hardware_count = sum(1 for item in item_list if _cell(item, "kind") == "hardware")
@@ -455,7 +510,7 @@ def present_quote(quote: Any, items: list[Any], *, show_price: bool, include_lin
         "author_name": _cell(quote, "author_name") or "",
         "author_email": _cell(quote, "author_email") or "",
         "created_at": _cell(quote, "created_at"),
-        "pdf_url": f"/api/quotes/{quote_id}/pdf",
+        "pdf_url": f"/api/quotes/{quote_id}/pdf" if allow_pdf else None,
     }
     if include_lines:
         payload["lines"] = lines_out

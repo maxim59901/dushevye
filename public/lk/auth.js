@@ -144,6 +144,77 @@
           if ((a.textContent || '').includes('Все роли') || (a.textContent || '').includes('←')) a.style.display = 'none';
         });
       }
+      Auth.mountAccessNotice(user);
+      if (user.role === 'admin') Auth.wireOrgAccess(user);
+    },
+    mountAccessNotice(user) {
+      const access = (user && user.org_access) || {};
+      const restricted = access.access_mode === 'demo' && user.role !== 'admin';
+      let text = '';
+      if (access.suspended && user.role !== 'admin') {
+        text = 'Доступ организации приостановлен. Вход и смена своего пароля работают. Остальные действия откроются, когда системный админ возобновит доступ. Данные не удалены.';
+      } else if (restricted) {
+        text = 'Демонстрационный режим: приглашения, смена ролей и массовые выгрузки отключены. Роль и пароль не менялись.';
+      } else if (user.role === 'admin' && (access.access_mode === 'demo' || access.suspended)) {
+        text = 'Режим организации: ' + (access.access_mode === 'demo' ? 'демо' : 'полный')
+          + (access.suspended ? ', доступ приостановлен' : '') + '. Системный админ не ограничен.';
+      }
+      let note = document.getElementById('orgAccessNotice');
+      if (!text) {
+        if (note) note.remove();
+        return;
+      }
+      if (!note) {
+        note = document.createElement('div');
+        note.id = 'orgAccessNotice';
+        note.className = 'note';
+        note.style.margin = '0 0 14px';
+        const content = document.querySelector('.content') || document.body;
+        content.insertBefore(note, content.firstChild);
+      }
+      note.textContent = text;
+    },
+    async wireOrgAccess(user) {
+      const host = document.getElementById('orgAccess');
+      if (!host || !user || user.role !== 'admin') return;
+      let access = user.org_access || { access_mode: 'full', suspended: false };
+      try {
+        const data = await api('/api/org/access');
+        access = data;
+      } catch (e) {
+        host.textContent = e.message || 'Не удалось прочитать режим доступа';
+        return;
+      }
+      host.innerHTML =
+        '<div class="field"><label>Режим</label><select data-mode>' +
+        '<option value="full"' + (access.access_mode === 'full' ? ' selected' : '') + '>Полный</option>' +
+        '<option value="demo"' + (access.access_mode === 'demo' ? ' selected' : '') + '>Демо</option>' +
+        '</select></div>' +
+        '<div class="field"><label><input type="checkbox" data-suspended' + (access.suspended ? ' checked' : '') + '/> Доступ приостановлен</label></div>' +
+        '<div class="row"><button class="btn" type="button" data-save>Сохранить режим</button></div>' +
+        '<p class="hint" data-status>Хозяин фирмы не системный админ. Приостановка не удаляет данные и не меняет пароли.</p>';
+      host.querySelector('[data-save]').onclick = async () => {
+        const btn = host.querySelector('[data-save]');
+        btn.disabled = true;
+        try {
+          const saved = await api('/api/org/access', {
+            method: 'PATCH',
+            body: {
+              access_mode: host.querySelector('[data-mode]').value,
+              suspended: host.querySelector('[data-suspended]').checked,
+            },
+          });
+          host.querySelector('[data-status]').textContent = saved.suspended
+            ? 'Доступ приостановлен. Сессии сотрудников проверяют это на каждом запросе.'
+            : (saved.access_mode === 'demo' ? 'Включён демо-режим.' : 'Полный режим.');
+          user.org_access = { access_mode: saved.access_mode, suspended: saved.suspended };
+          Auth.mountAccessNotice(user);
+        } catch (ex) {
+          Auth.showToast(ex.message);
+        } finally {
+          btn.disabled = false;
+        }
+      };
     },
     openPasswordModal() {
       let m = document.getElementById('pwdModal');

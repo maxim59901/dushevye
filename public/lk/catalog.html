@@ -236,7 +236,9 @@
     if (state.group) params.set('group', state.group);
     if (state.source) params.set('source', state.source);
     if (state.q) params.set('q', state.q);
-    params.set('limit', '1000');
+    const access = state.user && state.user.org_access;
+    const demo = access && access.access_mode === 'demo' && state.user.role !== 'admin';
+    params.set('limit', demo ? '40' : '1000');
     const status = document.getElementById('status');
     status.textContent = 'Загрузка…';
     let data;

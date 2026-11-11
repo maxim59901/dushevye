@@ -215,6 +215,17 @@ CREATE TABLE IF NOT EXISTS vitrine_leads (
 );
 
 CREATE INDEX IF NOT EXISTS idx_vitrine_leads_org ON vitrine_leads(org_id, created_at);
+
+-- Per-tenant demo / suspend. No row means full access and not suspended.
+-- Startup does not insert rows, so existing firms stay unrestricted.
+CREATE TABLE IF NOT EXISTS org_access (
+  org_id INTEGER PRIMARY KEY REFERENCES organizations(id),
+  access_mode TEXT NOT NULL DEFAULT 'full',
+  suspended INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  CHECK (access_mode IN ('full', 'demo')),
+  CHECK (suspended IN (0, 1))
+);
 """
 
 
@@ -248,6 +259,10 @@ def _migrate_quotes(conn: sqlite3.Connection) -> None:
 
 
 def init_db(path: Path | None = None) -> None:
+    """Create missing tables. Does not rewrite organizations, users, or catalog.db.
+
+    org_access is empty until an admin (or the operator CLI) writes one row.
+    """
     with connect(path) as conn:
         conn.executescript(SCHEMA)
         _migrate_quotes(conn)
