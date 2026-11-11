@@ -280,14 +280,8 @@ tr.just-saved{background:#FDF6F2}
 <script src="lk/auth.js"></script>
 <script>
 (function(){
-  // GLASS_RATES — ставки стекла (оценка площади × коэффициент). Это не DEMO hardware.
-  // Фурнитура и её цены приходят только из GET /api/catalog (price). Наборы base/strong удалены.
-  // Ставки и areaSqm продублированы в app/quotes.py. Менять только вместе: сервер пересчитывает КП при сохранении.
-  const GLASS_RATES = {
-    perSqm: {8: 4200, 10: 5100},
-    kindMult: {clear: 1, matte: 1.18},
-    typeFactor: {corner: 1.12, straight: 1.0, niche: 1.08, sliding: 1.15, accordion: 1.22, ushape: 1.18, trapezoid: 1.1}
-  };
+  // Оценка стекла и суммы строк приходят с POST /api/config/estimate.
+  // Ставки и формула площади в этой странице не хранятся.
   const TYPE_LABEL = {
     corner: 'Угловая',
     straight: 'Прямая',
@@ -330,6 +324,8 @@ tr.just-saved{background:#FDF6F2}
     templateId: '',
     ruleErrors: [],
     ruleWarnings: [],
+    estimate: null,
+    estimateFor: '',
     catalogGroups: [],
     deniedParts: new Map(),
     deniedGroups: new Map()
@@ -337,6 +333,8 @@ tr.just-saved{background:#FDF6F2}
   let csrfToken = null;
   let ruleTimer = null;
   let ruleSeq = 0;
+  let estimateTimer = null;
+  let estimateSeq = 0;
 
   const $ = (s, el=document) => el.querySelector(s);
   let searchSeq = 0;
@@ -374,14 +372,6 @@ tr.just-saved{background:#FDF6F2}
     const x = Number(n);
     if (!Number.isFinite(x)) return '—';
     return new Intl.NumberFormat('ru-RU', {maximumFractionDigits: 2}).format(x);
-  }
-  function areaSqm(type, w, h, d, d2){
-    const Wm = w/1000, Hm = h/1000, Dm = (d || 0)/1000, D2 = (d2 || 0)/1000;
-    if(type === 'corner' || type === 'trapezoid') return (Wm + Dm) * Hm;
-    if(type === 'niche') return (Wm + 2*Dm) * Hm * 0.55;
-    if(type === 'accordion') return Wm * Hm * 1.15;
-    if(type === 'ushape') return (Dm + Wm + D2) * Hm;
-    return Wm * Hm;
   }
   function currentTemplate(){
     return state.templates.find((t) => t.id === state.templateId) || null;
@@ -456,9 +446,14 @@ tr.just-saved{background:#FDF6F2}
   function apiPost(path, body){
     return apiSend('POST', path, body);
   }
+  function demoLocked(){
+    const access = state.user && state.user.org_access;
+    return !!(access && access.access_mode === 'demo' && state.user.role !== 'admin');
+  }
   function pdfAnchors(id){
     const n = Number(id);
     if (!Number.isInteger(n) || n <= 0) return '';
+    if (demoLocked()) return '<span class="hint">PDF в демо-режиме недоступен</span>';
     const open = '/api/quotes/' + n + '/pdf';
     return '<a href="' + open + '" target="_blank" rel="noopener">Открыть PDF</a>' +
       '<a href="' + open + '?download=1">Скачать PDF</a>';
@@ -936,44 +931,79 @@ tr.just-saved{background:#FDF6F2}
     applyVitrinePreset();
   }
 
+  function estimateKey(){
+    const body = draftPayload();
+    delete body.project_id;
+    return JSON.stringify(body);
+  }
+  function matchingEstimate(){
+    if (!state.estimate || state.estimate.ok === false) return null;
+    if (state.estimateFor !== estimateKey()) return null;
+    return state.estimate;
+  }
+  function estimateHardware(partId){
+    const est = matchingEstimate();
+    if (!est || !est.lines) return null;
+    return est.lines.find((line) => line.kind === 'hardware' && Number(line.part_id) === Number(partId)) || null;
+  }
+  function scheduleEstimate(){
+    clearTimeout(estimateTimer);
+    if (!state.user || !currentTemplate()) return;
+    const key = estimateKey();
+    if (state.estimateFor === key && state.estimate) return;
+    estimateTimer = setTimeout(() => { runEstimate(key); }, 280);
+  }
+  async function runEstimate(key){
+    const seq = ++estimateSeq;
+    try {
+      const data = await apiPost('/api/config/estimate', JSON.parse(key));
+      if (seq !== estimateSeq) return;
+      state.estimate = data || {ok: false};
+      state.estimateFor = key;
+      render();
+    } catch (e) {
+      if (seq !== estimateSeq) return;
+      state.estimate = {ok: false, message: e.message || ''};
+      state.estimateFor = key;
+      render();
+    }
+  }
   function render(){
     const tpl = currentTemplate();
     if (!tpl) return;
     const dims = readDims();
     const type = tpl.fence_type;
-    const w = dimNumber('width_mm', dims) || 0;
-    const h = dimNumber('height_mm', dims) || 0;
-    const d = dimNumber('depth_mm', dims) || 0;
-    const d2 = dimNumber('depth2_mm', dims) || 0;
     const thick = val('glassThick');
     const kind = val('glassKind');
-    const area = areaSqm(type, w, h, d, d2);
-    const thickKey = Number(thick);
-    const glassUnit = (GLASS_RATES.perSqm[thickKey] || 0)
-      * (GLASS_RATES.kindMult[kind] || 1)
-      * (GLASS_RATES.typeFactor[type] || 1);
-    const glassSum = roundMoney(area * glassUnit);
+    const est = matchingEstimate();
+    const area = est && est.glass_area_m2 != null ? Number(est.glass_area_m2) : null;
+    const glassUnit = est ? est.glass_unit_price : null;
+    const glassSum = est ? est.glass_sum : null;
+    const pending = state.user ? '…' : 'после входа';
 
     const sizeTxt = sizeText(tpl, dims);
 
     $('#kpTitle').textContent = `КП · ${tpl.name || TYPE_LABEL[type] || type}`;
-    $('#kpSub').textContent = `Проём ${sizeTxt} · стекло ${thick} мм, ${KIND_LABEL[kind] || kind} · площадь ≈ ${area.toFixed(2)} м²`;
+    const areaTxt = area == null ? 'считается на сервере' : ('≈ ' + area.toFixed(2) + ' м²');
+    $('#kpSub').textContent = `Проём ${sizeTxt} · стекло ${thick} мм, ${KIND_LABEL[kind] || kind} · площадь ${areaTxt}`;
 
     const rows = [{
       sku: '—',
       name: `Стекло ${thick} мм, ${KIND_LABEL[kind] || kind} · оценка`,
-      qty: qtyText(area) + ' м²',
-      price: money(glassUnit) + '/м²',
-      sum: money(glassSum),
+      qty: area == null ? '—' : (qtyText(area) + ' м²'),
+      price: glassUnit == null ? pending : (money(glassUnit) + '/м²'),
+      sum: glassSum == null ? pending : money(glassSum),
       amount: glassSum
     }];
 
     let missing = 0;
     state.picks.forEach((p) => {
-      const amount = lineSum(p);
+      const fromServer = estimateHardware(p.id);
+      const amount = fromServer ? fromServer.line_sum : lineSum(p);
       if (amount == null) missing += 1;
       let priceCell = '—';
-      if (!state.showPrice) priceCell = 'скрыта';
+      if (fromServer && fromServer.unit_price != null) priceCell = money(fromServer.unit_price);
+      else if (!state.showPrice) priceCell = 'скрыта';
       else if (priceNumber(p.price) == null) priceCell = 'нет в каталоге';
       else priceCell = money(p.price);
       const title = (p.groupTitle ? p.groupTitle + ' · ' : '') + (p.name || 'Позиция');
@@ -996,8 +1026,11 @@ tr.just-saved{background:#FDF6F2}
     $('#kpTotal').textContent = money(total);
 
     const notes = [
-      'Стекло посчитано по оценочной ставке (площадь × коэффициент). Финальный расчёт — после замера.'
+      'Оценка стекла посчитана на сервере. Ставки в страницу не входят. Финальный расчёт — после замера.'
     ];
+    if (demoLocked()) {
+      notes.push('Демонстрационный режим: PDF и массовая выгрузка каталога недоступны.');
+    }
     if (!state.catalogOk) {
       notes.push('Фурнитура появится в спецификации после входа: каталог отдаёт позиции и цену закупа по сессии.');
     } else if (!state.showPrice) {
@@ -1012,6 +1045,7 @@ tr.just-saved{background:#FDF6F2}
     }
     $('#kpNote').textContent = notes.join(' ');
     scheduleRules();
+    scheduleEstimate();
   }
 
   function renderChosen(){

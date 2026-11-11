@@ -14,4 +14,6 @@
 
 `vds-payload.tgz` и `api.env` в git не входят (см. `.gitignore`). Пароль SSH скрипт берёт только из `DUSHEVYE_VDS_PASS`, ключ — из `DUSHEVYE_VDS_KEY`. В аргументы командной строки пароль не передаётся.
 
+`deploy-vds.py` отказывается заливать архив, внутри которого есть `catalog.db`. `install-on-vds.sh` этот файл не копирует и живую базу не перезаписывает. Скрипт установки не меняет sshd. Расписание бэкапа — одна строка в `/etc/cron.d/dushevye`; такая же строка из root crontab снимается, остальные задания crontab не трогаются. Каталог `/var/backups/dushevye` — режим 700. Nginx из `nginx-dushevye.conf` запрещает точечные пути и суффиксы bak/sql/sqlite/db/env; `/media/` отдаётся из `root`, без `alias`.
+
 Выкладка на VDS и настройка HTTPS/домена в задачу синхронизации репозитория не входят.

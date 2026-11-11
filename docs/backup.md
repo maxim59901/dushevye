@@ -4,8 +4,10 @@
 
 ## Что копируется
 
-- Папка сайта `/var/www/dushevye`
-- Конфиг nginx сайта (если найден в `/etc/nginx/sites-enabled/` или `sites-available/`)
+- Папка сайта `/var/www/dushevye`. `app.db` и `catalog.db` попадают в архив снимком SQLite (`backup`), а не копией файла, который мог быть записан наполовину
+- Конфиги nginx сайта, sshd (`sshd_config` и `sshd_config.d`, без приватных host key), unit `dushevye-api`, `/etc/cron.d/dushevye`, root crontab и `/etc/dushevye` (там лежит `api.env`)
+
+Каталог архивов `/var/backups/dushevye` — режим `700`. Сам архив — `600`. Скрипт ничего не меняет в sshd и не перезаписывает живые базы.
 
 ## На сервере (VDS 178.212.15.231)
 

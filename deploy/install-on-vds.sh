@@ -7,11 +7,26 @@ PUB="$SITE/public"
 APP="$SITE/app"
 DATA="$SITE/data"
 
-mkdir -p "$PUB" "$DATA" /etc/dushevye /var/backups/dushevye
+mkdir -p "$PUB" "$DATA" /etc/dushevye
+install -d -m 700 /var/backups/dushevye
+chmod 700 /var/backups/dushevye
+install -d -m 700 /var/backups/dushevye/pre-deploy
+chmod 700 /var/backups/dushevye/pre-deploy
 
 # --- static site ---
+# Previous installs left index.html.bak.* inside the web root (they answered 200).
+# Keep the previous page, but outside public/, and move any already public copies.
+shopt -s nullglob
+for old in "$PUB"/index.html.bak "$PUB"/index.html.bak.*; do
+  if [[ -f "$old" ]]; then
+    mv "$old" /var/backups/dushevye/pre-deploy/
+  fi
+done
+shopt -u nullglob
 if [[ -f "$PUB/index.html" ]]; then
-  cp -a "$PUB/index.html" "$PUB/index.html.bak.$(date +%Y%m%d_%H%M%S)"
+  prev="/var/backups/dushevye/pre-deploy/index.html.$(date +%Y%m%d_%H%M%S)"
+  cp -a "$PUB/index.html" "$prev"
+  chmod 600 "$prev"
 fi
 cp -a "$BASE/public/index.html" "$PUB/index.html"
 cp -a "$BASE/public/cfg.html" "$PUB/cfg.html"
@@ -32,24 +47,14 @@ mkdir -p "$PUB/media"
 if [[ -d "$BASE/public/media" ]]; then
   cp -a "$BASE/public/media/." "$PUB/media/"
 fi
-# catalog seed db/json — never overwrite a larger/newer remote DB with a smaller payload
+# catalog.db is the live supplier database. A payload must not contain it and
+# this install never copies one over the file on disk.
 mkdir -p "$DATA"
 if [[ -f "$BASE/data/catalog/catalog.db" ]]; then
-  LOCAL_SZ=$(stat -c%s "$BASE/data/catalog/catalog.db" 2>/dev/null || echo 0)
-  REMOTE_SZ=0
-  if [[ -f "$DATA/catalog.db" ]]; then
-    REMOTE_SZ=$(stat -c%s "$DATA/catalog.db" 2>/dev/null || echo 0)
-  fi
-  if [[ "$LOCAL_SZ" -gt "$REMOTE_SZ" ]]; then
-    echo "catalog.db: installing payload ($LOCAL_SZ > remote $REMOTE_SZ)"
-    cp -a "$BASE/data/catalog/catalog.db" "$DATA/catalog.db"
-    cp -a "$BASE/data/catalog/parts.json" "$DATA/parts.json" 2>/dev/null || true
-    cp -a "$BASE/data/catalog/import-report.json" "$DATA/import-report.json" 2>/dev/null || true
-  else
-    echo "catalog.db: keeping remote ($REMOTE_SZ >= payload $LOCAL_SZ)"
-  fi
-elif [[ ! -f "$DATA/catalog.db" ]]; then
-  echo "catalog.db: none in payload and none on disk"
+  echo "catalog.db: payload file ignored; live $DATA/catalog.db is not overwritten"
+fi
+if [[ ! -f "$DATA/catalog.db" ]]; then
+  echo "catalog.db: none on disk (payload cannot create it)"
 fi
 chown -R www-data:www-data "$PUB/media" 2>/dev/null || true
 cp -a "$BASE/README.md" "$SITE/README.md" 2>/dev/null || true
@@ -58,10 +63,33 @@ if [[ -f "$BASE/DEPLOYED_SHA.txt" ]]; then
 fi
 
 # --- backup cron ---
+# One schedule only. Older installs wrote both root crontab and /etc/cron.d,
+# so the job ran twice. Keep unrelated crontab lines and unrelated lines in
+# /etc/cron.d/dushevye. Do not edit sshd here.
 if [[ -f "$BASE/dushevye-backup.sh" ]]; then
-  install -m 0755 "$BASE/dushevye-backup.sh" /usr/local/bin/dushevye-backup.sh
-  CRON_LINE='0 3 * * * /usr/local/bin/dushevye-backup.sh >> /var/log/dushevye-backup.log 2>&1'
-  (crontab -l 2>/dev/null | grep -v 'dushevye-backup.sh' || true; echo "$CRON_LINE") | crontab -
+  install -m 0700 "$BASE/dushevye-backup.sh" /usr/local/bin/dushevye-backup.sh
+  CRON_FILE=/etc/cron.d/dushevye
+  CRON_LINE='0 3 * * * root /usr/local/bin/dushevye-backup.sh >> /var/log/dushevye-backup.log 2>&1'
+  touch "$CRON_FILE"
+  cron_tmp=$(mktemp)
+  if ! grep -q '^SHELL=' "$CRON_FILE"; then
+    printf '%s\n' 'SHELL=/bin/bash' 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin' > "$cron_tmp"
+  fi
+  grep -v 'dushevye-backup.sh' "$CRON_FILE" >> "$cron_tmp" || true
+  printf '%s\n' "$CRON_LINE" >> "$cron_tmp"
+  mv "$cron_tmp" "$CRON_FILE"
+  chmod 644 "$CRON_FILE"
+  if crontab -l >"${cron_tmp}.prev" 2>/dev/null; then
+    if grep -q 'dushevye-backup.sh' "${cron_tmp}.prev"; then
+      grep -v 'dushevye-backup.sh' "${cron_tmp}.prev" > "${cron_tmp}.next" || true
+      if [[ -s "${cron_tmp}.next" ]]; then
+        crontab "${cron_tmp}.next"
+      else
+        crontab -r || true
+      fi
+    fi
+  fi
+  rm -f "${cron_tmp}.prev" "${cron_tmp}.next"
 fi
 
 # --- python app ---
@@ -116,7 +144,8 @@ systemctl daemon-reload
 systemctl enable dushevye-api
 systemctl restart dushevye-api
 
-# nginx
+# nginx. The repo file already denies dot paths and bak/sql/sqlite/db/env,
+# and serves /media/ from root (no alias). sshd is not modified by this script.
 install -m 0644 "$BASE/nginx-dushevye.conf" /etc/nginx/sites-available/dushevye
 ln -sfn /etc/nginx/sites-available/dushevye /etc/nginx/sites-enabled/dushevye
 rm -f /etc/nginx/sites-enabled/default

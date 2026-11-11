@@ -4,9 +4,8 @@
 The archive sits next to this script and is gitignored (*.tgz).
 Password from env DUSHEVYE_VDS_PASS only (not argv). Optional key: DUSHEVYE_VDS_KEY.
 """
-import os, sys, tarfile, tempfile, time
+import os, sys, tarfile, time
 from pathlib import Path
-import paramiko
 
 HOST = os.environ.get('DUSHEVYE_VDS_HOST', '178.212.15.231')
 USER = os.environ.get('DUSHEVYE_VDS_USER', 'root')
@@ -15,6 +14,8 @@ KEY = os.environ.get('DUSHEVYE_VDS_KEY')
 PAYLOAD = Path(__file__).resolve().parent / 'vds-payload.tgz'
 
 def connect():
+    import paramiko
+
     c = paramiko.SSHClient()
     c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     kwargs = dict(hostname=HOST, username=USER, timeout=30, allow_agent=False, look_for_keys=False)
@@ -27,9 +28,22 @@ def connect():
     c.connect(**kwargs)
     return c
 
+def payload_catalog_db(path: Path) -> str | None:
+    """Return the archive member name if catalog.db is packed. Never upload that."""
+    with tarfile.open(path, 'r:*') as archive:
+        for member in archive.getmembers():
+            name = member.name.replace('\\', '/').lstrip('./')
+            if name.lower().endswith('/catalog.db') or name.lower() == 'catalog.db':
+                return member.name
+    return None
+
+
 def main():
     if not PAYLOAD.exists():
         sys.exit(f'missing {PAYLOAD}')
+    blocked = payload_catalog_db(PAYLOAD)
+    if blocked:
+        sys.exit(f'refusing payload: catalog.db is packed ({blocked}); live catalog.db must not be overwritten')
     client = connect()
     sftp = client.open_sftp()
     remote_tgz = f'/tmp/dushevye-payload-{int(time.time())}.tgz'

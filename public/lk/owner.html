@@ -122,7 +122,7 @@
 <script>
 (async function () {
   try {
-    const data = await Auth.api('/api/catalog');
+    const data = await Auth.api('/api/catalog?limit=1');
     const n = data.total || (data.items && data.items.length) || 0;
     const el = document.getElementById('catalog-count');
     if (el) el.textContent = n ? (n + ' позиций') : 'каталог пуст';

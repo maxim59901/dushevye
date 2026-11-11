@@ -39,6 +39,22 @@ from .catalog_compat import (
     load_compat_rules,
 )
 from .config_rules import list_templates, merge_selected_parts, validate_config
+from .org_access import (
+    OrgAccessError,
+    apply_org_access,
+    assert_bom_size,
+    assert_catalog_page,
+    assert_export_allowed,
+    assert_no_export_query,
+    assert_not_suspended,
+    assert_rules_allowed,
+    assert_users_allowed,
+    attach_access,
+    demo_restricted,
+    load_user,
+    public_access,
+    read_org_access,
+)
 from .quotes import (
     QuoteIn,
     compose_quote,
@@ -46,6 +62,7 @@ from .quotes import (
     normalize_quote,
     parts_for_rules,
     present_quote,
+    public_estimate,
     quote_is_valid,
     render_quote_pdf,
     validation_error,
@@ -96,6 +113,12 @@ def _startup() -> None:
 
 
 def user_public(row) -> dict[str, Any]:
+    if isinstance(row, dict):
+        mode = row.get("access_mode") or "full"
+        suspended = bool(row.get("org_suspended"))
+    else:
+        mode = "full"
+        suspended = False
     return {
         "id": row["id"],
         "email": row["email"],
@@ -107,7 +130,15 @@ def user_public(row) -> dict[str, Any]:
         "must_change_password": bool(row["must_change_password"]),
         "is_active": bool(row["is_active"]),
         "created_at": row["created_at"],
+        "org_access": public_access({"access_mode": mode, "suspended": suspended}),
     }
+
+
+def enforce_access(check, *args) -> None:
+    try:
+        check(*args)
+    except OrgAccessError as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.message) from exc
 
 
 def audit(conn, org_id: int, actor_id: Optional[int], action: str, *, target_type=None, target_id=None, detail=None):
@@ -118,22 +149,38 @@ def audit(conn, org_id: int, actor_id: Optional[int], action: str, *, target_typ
 
 
 def current_user(request: Request):
+    """Load the user and the organization's access flags from the database.
+
+    Flags are not stored in the session cookie, so a suspend or demo change
+    applies on the next protected request of an already issued session.
+    """
     uid = request.session.get("user_id")
     if not uid:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Не авторизован")
     with get_db() as conn:
-        row = conn.execute(
-            "SELECT * FROM users WHERE id=? AND is_active=1", (uid,)
-        ).fetchone()
-    if not row:
+        user = load_user(conn, int(uid))
+    if not user:
         request.session.clear()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Сессия устарела")
-    return row
+    return user
 
 
-def require_privileged(user=Depends(current_user)):
+def require_active_org(user=Depends(current_user)):
+    """Block a suspended organization. System admin (role admin) stays allowed."""
+    enforce_access(assert_not_suspended, user)
+    return user
+
+
+def require_privileged(user=Depends(require_active_org)):
     if user["role"] not in PRIVILEGED:
         raise HTTPException(status_code=403, detail="Только админ или хозяин")
+    return user
+
+
+def require_system_admin(user=Depends(current_user)):
+    """Manual demo/suspend. Owner is not a system admin, even in the same org."""
+    if user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Только системный админ")
     return user
 
 
@@ -180,6 +227,14 @@ class InviteIn(BaseModel):
 
 class RolePatchIn(BaseModel):
     role: str
+
+
+class OrgAccessIn(BaseModel):
+    """Only flags. org_id in the body is ignored so one tenant cannot target another."""
+
+    model_config = {"extra": "ignore"}
+    access_mode: Optional[str] = None
+    suspended: Optional[bool] = None
 
 
 class CompatRuleIn(BaseModel):
@@ -244,6 +299,7 @@ def login(body: LoginIn, request: Request):
         ).fetchone()
         if not row or not verify_password(body.password, row["password_hash"]):
             raise HTTPException(status_code=401, detail="Неверный email или пароль")
+        signed_in = attach_access(row, read_org_access(conn, int(row["org_id"])))
         # Keep existing CSRF token across login so the SPA does not need a second fetch.
         csrf = request.session.get(CSRF_SESSION_KEY)
         request.session.clear()
@@ -251,11 +307,11 @@ def login(body: LoginIn, request: Request):
             request.session[CSRF_SESSION_KEY] = csrf
         else:
             ensure_csrf_token(request)
-        request.session["user_id"] = row["id"]
-        request.session["org_id"] = row["org_id"]
-        audit(conn, row["org_id"], row["id"], "login", detail=email)
+        request.session["user_id"] = signed_in["id"]
+        request.session["org_id"] = signed_in["org_id"]
+        audit(conn, signed_in["org_id"], signed_in["id"], "login", detail=email)
         clear_login_rate(key)
-        return {"user": user_public(row)}
+        return {"user": user_public(signed_in)}
 
 
 @app.post("/api/auth/logout")
@@ -296,16 +352,19 @@ def change_password(body: ChangePasswordIn, request: Request, user=Depends(curre
 
 @app.get("/api/users")
 def list_users(user=Depends(require_privileged)):
+    enforce_access(assert_users_allowed, user)
     with get_db() as conn:
         rows = conn.execute(
             "SELECT * FROM users WHERE org_id=? ORDER BY id", (user["org_id"],)
         ).fetchall()
-    return {"users": [user_public(r) for r in rows]}
+        access = read_org_access(conn, int(user["org_id"]))
+    return {"users": [user_public(attach_access(r, access)) for r in rows]}
 
 
 @app.post("/api/users", status_code=201)
 def invite_user(body: InviteIn, request: Request, user=Depends(require_privileged)):
     require_csrf(request)
+    enforce_access(assert_users_allowed, user)
     role = body.role.strip().lower()
     if role not in ROLES:
         raise HTTPException(status_code=400, detail=f"Неизвестная роль. Допустимо: {', '.join(ROLES)}")
@@ -339,8 +398,9 @@ def invite_user(body: InviteIn, request: Request, user=Depends(require_privilege
         # SMTP отложен: пароль один раз в ответе
         print(f"[dushevye] email skipped for {email}; temp password issued once in API response", flush=True)
         row = conn.execute("SELECT * FROM users WHERE id=?", (new_id,)).fetchone()
+        access = read_org_access(conn, int(user["org_id"]))
         return {
-            "user": user_public(row),
+            "user": user_public(attach_access(row, access)),
             "tempPassword": temp,
             "emailSent": False,
             "note": "Письмо не отправлялось (SMTP пока выключен). Сохраните пароль — больше не покажем.",
@@ -350,6 +410,7 @@ def invite_user(body: InviteIn, request: Request, user=Depends(require_privilege
 @app.patch("/api/users/{user_id}/role")
 def patch_role(user_id: int, body: RolePatchIn, request: Request, user=Depends(require_privileged)):
     require_csrf(request)
+    enforce_access(assert_users_allowed, user)
     role = body.role.strip().lower()
     if role not in ROLES:
         raise HTTPException(status_code=400, detail="Неизвестная роль")
@@ -359,9 +420,10 @@ def patch_role(user_id: int, body: RolePatchIn, request: Request, user=Depends(r
         ).fetchone()
         if not target:
             raise HTTPException(status_code=404, detail="Пользователь не найден")
+        access = read_org_access(conn, int(user["org_id"]))
         old = target["role"]
         if old == role:
-            return {"user": user_public(target)}
+            return {"user": user_public(attach_access(target, access))}
         # не даём снять последнего owner/admin сами себе критично — мягко разрешаем, но логируем
         conn.execute(
             "UPDATE users SET role=?, updated_at=datetime('now') WHERE id=?",
@@ -387,11 +449,40 @@ def patch_role(user_id: int, body: RolePatchIn, request: Request, user=Depends(r
             {"role": role, "email": target["email"], "name": target["name"] or ""},
         )
         row = conn.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
-        return {"user": user_public(row)}
+        return {"user": user_public(attach_access(row, access))}
+
+
+@app.get("/api/org/access")
+def get_org_access(user=Depends(current_user)):
+    """Own organization only. Suspended users can still read why the cabinet stopped."""
+    with get_db() as conn:
+        access = read_org_access(conn, int(user["org_id"]))
+    return {"org_id": int(user["org_id"]), **public_access(access)}
+
+
+@app.patch("/api/org/access")
+def patch_org_access(body: OrgAccessIn, request: Request, user=Depends(require_system_admin)):
+    """Manual demo or suspend for the admin's own organization. No timer, no other tenant."""
+    require_csrf(request)
+    if body.access_mode is None and body.suspended is None:
+        raise HTTPException(status_code=400, detail="Укажите access_mode или suspended")
+    try:
+        with get_db() as conn:
+            result = apply_org_access(
+                conn,
+                int(user["org_id"]),
+                int(user["id"]),
+                access_mode=body.access_mode,
+                suspended=body.suspended,
+            )
+    except OrgAccessError as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.message) from exc
+    return {"org_id": int(user["org_id"]), **public_access(result), "changed": result["changed"]}
 
 
 @app.get("/api/audit")
-def get_audit(limit: int = 100, user=Depends(current_user)):
+def get_audit(request: Request, limit: int = 100, user=Depends(require_active_org)):
+    enforce_access(assert_no_export_query, user, request.query_params)
     limit = max(1, min(limit, 500))
     with get_db() as conn:
         if user["role"] in PRIVILEGED:
@@ -432,15 +523,17 @@ def get_audit(limit: int = 100, user=Depends(current_user)):
 
 @app.get("/api/versions")
 def get_versions(
+    request: Request,
     entity_type: Optional[str] = None,
     entity_id: Optional[int] = None,
     limit: int = 50,
-    user=Depends(current_user),
+    user=Depends(require_active_org),
 ):
     """Before/after history. Admin and owner see the org; other roles see their own rows.
 
     GET does not require a CSRF token. /api/audit is unchanged.
     """
+    enforce_access(assert_no_export_query, user, request.query_params)
     with get_db() as conn:
         return list_versions(
             conn,
@@ -503,17 +596,20 @@ def _part_public(row, *, show_price: bool) -> dict:
 
 @app.get("/api/catalog")
 def catalog_list(
+    request: Request,
     group: Optional[str] = None,
     source: Optional[str] = None,
     q: Optional[str] = None,
     limit: int = 500,
     offset: int = 0,
-    user=Depends(current_user),
+    user=Depends(require_active_org),
 ):
     """List parts with cross-filtered manufacturer (source) and group counts."""
+    enforce_access(assert_no_export_query, user, request.query_params)
+    enforce_access(assert_catalog_page, user, limit, offset)
     limit = max(1, min(limit, 1000))
     offset = max(0, offset)
-    show_price = user["role"] in PRICE_ROLES
+    show_price = _show_price(user, catalog=True)
     group = (group or "").strip() or None
     source = (source or "").strip().lower() or None
     q = (q or "").strip() or None
@@ -625,7 +721,7 @@ def _compat_glass(glass_mm: Optional[int]) -> Optional[int]:
 def catalog_compat(
     glass_mm: Optional[int] = None,
     template_id: Optional[str] = None,
-    user=Depends(current_user),
+    user=Depends(require_active_org),
 ):
     """Allow/deny hints for the current glass and template. Any signed-in role."""
     thick = _compat_glass(glass_mm)
@@ -637,12 +733,14 @@ def catalog_compat(
 @app.get("/api/catalog/compat/rules")
 def catalog_compat_rules_list(user=Depends(require_privileged)):
     """Seed matrix plus this org's own rules. Manager is not allowed."""
+    enforce_access(assert_rules_allowed, user)
     return {"items": list_rules(int(user["org_id"]))}
 
 
 @app.post("/api/catalog/compat/rules", status_code=201)
 def catalog_compat_rules_create(body: CompatRuleIn, request: Request, user=Depends(require_privileged)):
     require_csrf(request)
+    enforce_access(assert_rules_allowed, user)
     try:
         rule = create_rule(int(user["org_id"]), int(user["id"]), body.model_dump())
     except CompatError as exc:
@@ -667,6 +765,7 @@ def catalog_compat_rules_create(body: CompatRuleIn, request: Request, user=Depen
 @app.delete("/api/catalog/compat/rules/{rule_id}")
 def catalog_compat_rules_delete(rule_id: int, request: Request, user=Depends(require_privileged)):
     require_csrf(request)
+    enforce_access(assert_rules_allowed, user)
     try:
         result = delete_rule(int(user["org_id"]), rule_id)
     except CompatError as exc:
@@ -685,8 +784,9 @@ def catalog_compat_rules_delete(rule_id: int, request: Request, user=Depends(req
 
 
 @app.get("/api/catalog/{part_id}")
-def catalog_one(part_id: int, user=Depends(current_user)):
-    show_price = user["role"] in PRICE_ROLES
+def catalog_one(request: Request, part_id: int, user=Depends(require_active_org)):
+    enforce_access(assert_no_export_query, user, request.query_params)
+    show_price = _show_price(user, catalog=True)
     with _catalog_conn() as conn:
         row = conn.execute(
             """SELECT p.*, g.title_ru AS group_title
@@ -700,8 +800,18 @@ def catalog_one(part_id: int, user=Depends(current_user)):
     return {"item": _part_public(row, show_price=show_price)}
 
 
-def _show_price(user) -> bool:
-    return user["role"] in PRICE_ROLES
+def _show_price(user, *, catalog: bool = False) -> bool:
+    """Purchase prices follow the role matrix.
+
+    In demo mode the catalog list is not a price dump: non-admins, including
+    the owner, get items without purchase prices. A quote they actually build
+    still prices only the lines on that quote.
+    """
+    if user["role"] not in PRICE_ROLES:
+        return False
+    if catalog and demo_restricted(user):
+        return False
+    return True
 
 
 def _load_quote(conn, quote_id: int, user, *, with_items: bool):
@@ -723,11 +833,17 @@ def _load_quote(conn, quote_id: int, user, *, with_items: bool):
     return row, items
 
 
+def _allow_pdf(user) -> bool:
+    return not demo_restricted(user)
+
+
 @app.get("/api/quotes")
-def list_quotes(limit: int = 50, user=Depends(current_user)):
+def list_quotes(request: Request, limit: int = 50, user=Depends(require_active_org)):
     """Own drafts. Admin and owner see every quote in the org; other roles see their own."""
+    enforce_access(assert_no_export_query, user, request.query_params)
     limit = max(1, min(limit, 200))
     show_price = _show_price(user)
+    allow_pdf = _allow_pdf(user)
     with get_db() as conn:
         if user["role"] in PRIVILEGED:
             rows = conn.execute(
@@ -753,7 +869,10 @@ def list_quotes(limit: int = 50, user=Depends(current_user)):
                    LIMIT ?""",
                 (user["org_id"], user["id"], limit),
             ).fetchall()
-        items = [present_quote(row, [], show_price=show_price, include_lines=False) for row in rows]
+        items = [
+            present_quote(row, [], show_price=show_price, include_lines=False, allow_pdf=allow_pdf)
+            for row in rows
+        ]
     return {
         "items": items,
         "show_price": show_price,
@@ -762,16 +881,26 @@ def list_quotes(limit: int = 50, user=Depends(current_user)):
 
 
 @app.get("/api/quotes/{quote_id}")
-def get_quote(quote_id: int, user=Depends(current_user)):
+def get_quote(request: Request, quote_id: int, user=Depends(require_active_org)):
+    enforce_access(assert_no_export_query, user, request.query_params)
     show_price = _show_price(user)
     with get_db() as conn:
         row, items = _load_quote(conn, quote_id, user, with_items=True)
-        quote = present_quote(row, items, show_price=show_price, include_lines=True)
+        quote = present_quote(
+            row, items, show_price=show_price, include_lines=True, allow_pdf=_allow_pdf(user)
+        )
     return {"quote": quote}
 
 
 @app.get("/api/quotes/{quote_id}/pdf")
-def get_quote_pdf(quote_id: int, download: bool = False, user=Depends(current_user)):
+def get_quote_pdf(
+    request: Request,
+    quote_id: int,
+    download: bool = False,
+    user=Depends(require_active_org),
+):
+    enforce_access(assert_export_allowed, user)
+    enforce_access(assert_no_export_query, user, request.query_params)
     show_price = _show_price(user)
     with get_db() as conn:
         row, items = _load_quote(conn, quote_id, user, with_items=True)
@@ -820,8 +949,33 @@ def templates_list():
     return {"items": list_templates()}
 
 
+@app.post("/api/config/estimate")
+def config_estimate(body: QuoteIn, request: Request, user=Depends(require_active_org)):
+    """Glass and hardware totals. The rate table is not part of the response."""
+    require_csrf(request)
+    enforce_access(assert_bom_size, user, len(body.items))
+    draft = normalize_quote(body)
+    enforce_access(assert_bom_size, user, len(draft["items"]))
+    if draft.get("template_id"):
+        checked = quote_is_valid(
+            draft,
+            parts_for_rules(fetch_parts([item["id"] for item in draft["items"]]), draft["items"])
+            if draft["items"]
+            else [],
+            org_id=int(user["org_id"]),
+        )
+        if not checked["ok"]:
+            return {
+                "ok": False,
+                "errors": checked["errors"],
+                "warnings": checked["warnings"],
+            }
+    parts = fetch_parts([item["id"] for item in draft["items"]]) if draft["items"] else {}
+    return public_estimate(compose_quote(draft, parts), show_price=_show_price(user))
+
+
 @app.post("/api/config/validate")
-def config_validate(body: ConfigValidateIn, request: Request, user=Depends(current_user)):
+def config_validate(body: ConfigValidateIn, request: Request, user=Depends(require_active_org)):
     """Check a draft against the template. Does not save a quote."""
     require_csrf(request)
     items, item_errors = merge_selected_parts(body.items, body.part_ids)
@@ -844,9 +998,11 @@ def config_validate(body: ConfigValidateIn, request: Request, user=Depends(curre
 
 
 @app.post("/api/quotes", status_code=201)
-def create_quote(body: QuoteIn, request: Request, user=Depends(current_user)):
+def create_quote(body: QuoteIn, request: Request, user=Depends(require_active_org)):
     require_csrf(request)
+    enforce_access(assert_bom_size, user, len(body.items))
     draft = normalize_quote(body)
+    enforce_access(assert_bom_size, user, len(draft["items"]))
     validation = None
     if draft.get("template_id"):
         geometry = validate_config(draft, None)
@@ -970,7 +1126,9 @@ def create_quote(body: QuoteIn, request: Request, user=Depends(current_user)):
             detail=detail,
         )
         row, items = _load_quote(conn, quote_id, user, with_items=True)
-        quote = present_quote(row, items, show_price=show_price, include_lines=True)
+        quote = present_quote(
+            row, items, show_price=show_price, include_lines=True, allow_pdf=_allow_pdf(user)
+        )
     payload = {"quote": quote}
     if validation is not None:
         payload["validation"] = validation
@@ -979,12 +1137,14 @@ def create_quote(body: QuoteIn, request: Request, user=Depends(current_user)):
 
 @app.get("/api/projects")
 def projects_list(
+    request: Request,
     status: Optional[str] = None,
     customer: Optional[str] = None,
     limit: int = 100,
-    user=Depends(current_user),
+    user=Depends(require_active_org),
 ):
     """Projects in the caller's scope. Admin, owner, and accountant see the org."""
+    enforce_access(assert_no_export_query, user, request.query_params)
     limit = max(1, min(limit, 200))
     status_code = normalize_status_filter(status)
     customer_q = normalize_customer_filter(customer)
@@ -996,7 +1156,7 @@ def projects_list(
 
 
 @app.post("/api/projects", status_code=201)
-def projects_create(body: ProjectCreateIn, request: Request, user=Depends(current_user)):
+def projects_create(body: ProjectCreateIn, request: Request, user=Depends(require_active_org)):
     require_csrf(request)
     with get_db() as conn:
         project = create_project(conn, user, body)
@@ -1016,7 +1176,8 @@ def projects_create(body: ProjectCreateIn, request: Request, user=Depends(curren
 
 
 @app.get("/api/projects/{project_id}")
-def projects_get(project_id: int, user=Depends(current_user)):
+def projects_get(request: Request, project_id: int, user=Depends(require_active_org)):
+    enforce_access(assert_no_export_query, user, request.query_params)
     with get_db() as conn:
         project = load_project(conn, user, project_id)
     return {"project": project, **project_meta(user)}
@@ -1027,7 +1188,7 @@ def projects_status(
     project_id: int,
     body: ProjectStatusIn,
     request: Request,
-    user=Depends(current_user),
+    user=Depends(require_active_org),
 ):
     require_csrf(request)
     with get_db() as conn:
@@ -1050,7 +1211,7 @@ def projects_quote(
     project_id: int,
     body: ProjectQuoteIn,
     request: Request,
-    user=Depends(current_user),
+    user=Depends(require_active_org),
 ):
     require_csrf(request)
     with get_db() as conn:
@@ -1079,14 +1240,16 @@ def _stock_move(kind: str, body: StockMoveIn, request: Request, user):
 
 @app.get("/api/stock")
 def stock_list(
+    request: Request,
     group: Optional[str] = None,
     source: Optional[str] = None,
     manufacturer: Optional[str] = None,
     q: Optional[str] = None,
     limit: int = 200,
-    user=Depends(current_user),
+    user=Depends(require_active_org),
 ):
     """Org balances over catalog parts. Sorted by deficit, then reserve, qty, min."""
+    enforce_access(assert_no_export_query, user, request.query_params)
     limit = max(1, min(limit, 500))
     with get_db() as conn:
         return list_stock(
@@ -1100,22 +1263,22 @@ def stock_list(
 
 
 @app.post("/api/stock/in")
-def stock_in(body: StockMoveIn, request: Request, user=Depends(current_user)):
+def stock_in(body: StockMoveIn, request: Request, user=Depends(require_active_org)):
     return _stock_move("in", body, request, user)
 
 
 @app.post("/api/stock/out")
-def stock_out(body: StockMoveIn, request: Request, user=Depends(current_user)):
+def stock_out(body: StockMoveIn, request: Request, user=Depends(require_active_org)):
     return _stock_move("out", body, request, user)
 
 
 @app.post("/api/stock/reserve")
-def stock_reserve(body: StockMoveIn, request: Request, user=Depends(current_user)):
+def stock_reserve(body: StockMoveIn, request: Request, user=Depends(require_active_org)):
     return _stock_move("reserve", body, request, user)
 
 
 @app.post("/api/stock/release")
-def stock_release(body: StockMoveIn, request: Request, user=Depends(current_user)):
+def stock_release(body: StockMoveIn, request: Request, user=Depends(require_active_org)):
     return _stock_move("release", body, request, user)
 
 
