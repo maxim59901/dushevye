@@ -59,6 +59,7 @@ from .quotes import (
     QuoteIn,
     compose_quote,
     fetch_parts,
+    glass_priced,
     normalize_quote,
     parts_for_rules,
     present_quote,
@@ -951,27 +952,60 @@ def templates_list():
 
 @app.post("/api/config/estimate")
 def config_estimate(body: QuoteIn, request: Request, user=Depends(require_active_org)):
-    """Glass and hardware totals. The rate table is not part of the response."""
+    """Glass and hardware totals. The rate table is not part of the response.
+
+    A rule error still includes the glass figures. The screen used to calculate
+    those locally even when hardware could not be saved.
+    """
     require_csrf(request)
     enforce_access(assert_bom_size, user, len(body.items))
     draft = normalize_quote(body)
     enforce_access(assert_bom_size, user, len(draft["items"]))
+    checked = None
+    parts: dict = {}
+    if draft["items"]:
+        try:
+            parts = fetch_parts([item["id"] for item in draft["items"]])
+        except HTTPException as exc:
+            if exc.status_code != 400:
+                raise
+            message = exc.detail if isinstance(exc.detail, str) else "В каталоге нет позиций"
+            checked = {
+                "ok": False,
+                "errors": [{"code": "part_id", "message": message}],
+                "warnings": [],
+            }
+            parts = {}
+            draft = {**draft, "items": []}
     if draft.get("template_id"):
-        checked = quote_is_valid(
+        validation = quote_is_valid(
             draft,
-            parts_for_rules(fetch_parts([item["id"] for item in draft["items"]]), draft["items"])
-            if draft["items"]
-            else [],
+            parts_for_rules(parts, draft["items"]) if draft["items"] else [],
             org_id=int(user["org_id"]),
         )
-        if not checked["ok"]:
-            return {
+        if checked is None:
+            checked = validation
+        else:
+            checked = {
                 "ok": False,
-                "errors": checked["errors"],
-                "warnings": checked["warnings"],
+                "errors": list(validation["errors"]) + list(checked["errors"]),
+                "warnings": list(validation["warnings"]) + list(checked["warnings"]),
             }
-    parts = fetch_parts([item["id"] for item in draft["items"]]) if draft["items"] else {}
-    return public_estimate(compose_quote(draft, parts), show_price=_show_price(user))
+    if not glass_priced(draft):
+        return {
+            "ok": False,
+            "errors": (checked or {}).get("errors") or [
+                {"code": "glass_thickness", "message": "Для этой толщины нет ставки стекла."}
+            ],
+            "warnings": (checked or {}).get("warnings") or [],
+        }
+    payload = public_estimate(compose_quote(draft, parts), show_price=_show_price(user))
+    if checked is not None:
+        payload["warnings"] = checked.get("warnings") or []
+        if not checked["ok"]:
+            payload["ok"] = False
+            payload["errors"] = checked["errors"]
+    return payload
 
 
 @app.post("/api/config/validate")

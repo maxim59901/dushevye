@@ -204,6 +204,35 @@ class OrgAccessTest(unittest.TestCase):
         raw = res.text
         for secret_key in ("per_sqm", "kind_mult", "type_factor", "GLASS_RATES", "perSqm"):
             self.assertNotIn(secret_key, raw)
+        page = (ROOT / "public" / "cfg.html").read_text(encoding="utf-8")
+        self.assertNotIn("state.estimate.ok === false", page)
+        self.assertIn("function hardwarePriced()", page)
+        self.assertIn("est.show_price", page)
+
+    def test_rule_error_still_returns_glass_estimate(self) -> None:
+        token = self._login(self.owner, "owner@example.com")
+        res = self.owner.post(
+            "/api/config/estimate",
+            json={
+                "template_id": "corner_two",
+                "width_mm": 100,
+                "depth_mm": 900,
+                "height_mm": 2000,
+                "glass_thick_mm": 8,
+                "glass_kind": "clear",
+                "items": [{"id": 1, "qty": 2}],
+            },
+            headers={"X-CSRF-Token": token},
+        )
+        self.assertEqual(res.status_code, 200, res.text)
+        body = res.json()
+        self.assertFalse(body["ok"])
+        self.assertTrue(body["errors"])
+        self.assertEqual(body["glass_area_m2"], 2.0)
+        self.assertEqual(body["glass_sum"], 9408.0)
+        self.assertIn("lines", body)
+        self.assertNotIn("per_sqm", res.text)
+        self.assertNotIn("kind_mult", res.text)
 
     def test_admin_keeps_access_when_owner_is_limited(self) -> None:
         admin_token = self._login(self.admin, "admin@example.com")

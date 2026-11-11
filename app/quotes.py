@@ -89,6 +89,15 @@ class QuoteIn(BaseModel):
     project_id: Optional[int] = None
 
 
+def glass_priced(draft: dict[str, Any]) -> bool:
+    """True when this draft has a server rate. Does not return the rate table."""
+    return (
+        draft.get("glass_thick_mm") in GLASS_RATES["per_sqm"]
+        and draft.get("glass_kind") in GLASS_RATES["kind_mult"]
+        and draft.get("fence_type") in GLASS_RATES["type_factor"]
+    )
+
+
 def round_money(n: float) -> float:
     """Half-up rounding to kopeks, same as Math.round(n * 100) / 100 for positive n."""
     return math.floor(float(n) * 100 + 0.5) / 100.0

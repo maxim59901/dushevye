@@ -937,9 +937,14 @@ tr.just-saved{background:#FDF6F2}
     return JSON.stringify(body);
   }
   function matchingEstimate(){
-    if (!state.estimate || state.estimate.ok === false) return null;
-    if (state.estimateFor !== estimateKey()) return null;
+    if (!state.estimate || state.estimateFor !== estimateKey()) return null;
+    if (state.estimate.glass_area_m2 == null && state.estimate.glass_sum == null) return null;
     return state.estimate;
+  }
+  function hardwarePriced(){
+    const est = matchingEstimate();
+    if (est && typeof est.show_price === 'boolean') return est.show_price;
+    return !!state.showPrice;
   }
   function estimateHardware(partId){
     const est = matchingEstimate();
@@ -996,14 +1001,17 @@ tr.just-saved{background:#FDF6F2}
       amount: glassSum
     }];
 
+    const showHwPrice = hardwarePriced();
     let missing = 0;
     state.picks.forEach((p) => {
       const fromServer = estimateHardware(p.id);
-      const amount = fromServer ? fromServer.line_sum : lineSum(p);
+      let amount = null;
+      if (fromServer) amount = showHwPrice ? fromServer.line_sum : null;
+      else if (showHwPrice) amount = lineSum(p);
       if (amount == null) missing += 1;
       let priceCell = '—';
-      if (fromServer && fromServer.unit_price != null) priceCell = money(fromServer.unit_price);
-      else if (!state.showPrice) priceCell = 'скрыта';
+      if (showHwPrice && fromServer && fromServer.unit_price != null) priceCell = money(fromServer.unit_price);
+      else if (!showHwPrice) priceCell = 'скрыта';
       else if (priceNumber(p.price) == null) priceCell = 'нет в каталоге';
       else priceCell = money(p.price);
       const title = (p.groupTitle ? p.groupTitle + ' · ' : '') + (p.name || 'Позиция');
@@ -1018,7 +1026,7 @@ tr.just-saved{background:#FDF6F2}
     });
 
     const total = rows.reduce((s, r) => s + (r.amount == null ? 0 : r.amount), 0);
-    const pricedHw = state.picks.filter((p) => lineSum(p) != null).length;
+    const pricedHw = rows.slice(1).some((row) => row.amount != null);
     $('#kpBadge').textContent = pricedHw ? 'Каталог' : 'Черновик';
     $('#kpRows').innerHTML = rows.map((r) =>
       `<tr><td class="sku">${esc(r.sku)}</td><td>${esc(r.name)}</td><td class="num">${esc(r.qty)}</td><td class="num">${esc(r.price)}</td><td class="num">${esc(r.sum)}</td></tr>`
@@ -1033,14 +1041,14 @@ tr.just-saved{background:#FDF6F2}
     }
     if (!state.catalogOk) {
       notes.push('Фурнитура появится в спецификации после входа: каталог отдаёт позиции и цену закупа по сессии.');
-    } else if (!state.showPrice) {
-      notes.push('Для этой роли каталог не отдаёт цену закупа. Выбранные позиции есть в спецификации, в итог они не входят.');
+    } else if (!showHwPrice) {
+      notes.push('Цена закупа в этот итог не входит. В спецификации остаются выбранные позиции.');
     } else if (pricedHw) {
       notes.push('Цены фурнитуры — закуп из каталога. Сборка и доставка в итог не входят. Клиентскую цену считайте отдельно.');
     } else {
       notes.push('Добавьте фурнитуру из каталога — в спецификации будут артикул, количество и цена закупа.');
     }
-    if (state.showPrice && missing && state.picks.length) {
+    if (showHwPrice && missing && state.picks.length) {
       notes.push('Позиции без цены в каталоге стоят в спецификации и в итог не входят.');
     }
     $('#kpNote').textContent = notes.join(' ');
